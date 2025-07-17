@@ -76,18 +76,8 @@
     <input type="number" name="duration_days" min="1" class="mt-1 w-full rounded border" />
   </label>
 
-  <label class="block">
-    Arzneimittel:
-    <input type="text" name="medication" class="mt-1 w-full rounded border" value="Arzneimittel" />
-  </label>
-
-  <label class="block">
-    Einheit:
-    <input type="text" name="unit" class="mt-1 w-full rounded border" value="Stück" />
-  </label>
-
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-    FHIR-Objekt generieren
+    Dosierung generieren
   </button>
 </form>
 
@@ -105,6 +95,37 @@ function addTimeOfDayField() {
   container.appendChild(div);
 }
 </script>
+{% elif schema == "weekday" %}
+<form hx-post="/generate/weekday" hx-target="#result" class="space-y-4">
+  <input type="hidden" name="schema" value="weekday" />
+  
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+    {% for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] %}
+    <label class="flex items-center gap-2">
+      <input type="checkbox" name="day_{{ day }}" value="1" />
+      {{ day|title }}:
+      <input type="number" name="dose_{{ day }}" min="0" step="any" class="w-20 border rounded px-1 py-0.5" placeholder="Dosis" />
+    </label>
+    {% endfor %}
+  </div>
+
+
+    <label class="block">
+    Dauer der Anwendung:
+    <div class="flex gap-2 mt-1">
+        <input type="number" name="duration_value" min="1" class="w-24 rounded border px-2 py-1" placeholder="z. B. 10" />
+        <select name="duration_unit" class="rounded border px-2 py-1">
+        <option value="d">Tag(e)</option>
+        <option value="wk" selected>Woche(n)</option>
+        <option value="mo">Monat(e)</option>
+        </select>
+    </div>
+    </label>
+
+  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+    FHIR-Objekt generieren
+  </button>
+</form>
 {% else %}
 <form hx-post="/generate/freetext" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="freetext" />

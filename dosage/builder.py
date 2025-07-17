@@ -1,4 +1,5 @@
-from typing import List, Optional
+from typing import List, Tuple, Optional
+from collections import defaultdict
 
 def build_freetext(text: str) -> dict:
     return {
@@ -183,5 +184,78 @@ def build_mman(
                 ],
             }
             resource["dosageInstruction"].append(dosage)
+
+    return resource
+
+def build_weekday(
+    days_and_doses: List[Tuple[str, float]],
+    duration_value: Optional[int] = None,
+    duration_unit: str = "wk",  # angepasst!
+    medication: str = "Arzneimittel",
+    unit: str = "Stück"
+) -> dict:
+    """
+    Erzeugt ein FHIR-konformes MedicationRequest für das Wochentagsschema (dayOfWeek).
+    """
+
+    resource = {
+        "resourceType": "MedicationRequest",
+        "meta": {
+            "profile": [
+                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
+            ]
+        },
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {"text": medication},
+        "subject": {"display": "Patient"},
+        "dosageInstruction": [],
+    }
+
+    bounds = (
+        {
+            "boundsDuration": {
+                "value": duration_value,
+                "unit": {
+                    "d": "Tag(e)",
+                    "wk": "Woche(n)",
+                    "mo": "Monat(e)"
+                }.get(duration_unit, duration_unit),
+                "system": "http://unitsofmeasure.org",
+                "code": duration_unit
+            }
+        }
+        if duration_value
+        else {}
+    )
+
+    # Gruppiere Wochentage nach identischer Dosis
+    grouped: dict[float, List[str]] = defaultdict(list)
+    for day, dose in days_and_doses:
+        grouped[dose].append(day.lower())  # FHIR erwartet "mon", "tue", ...
+
+    for dose, days in grouped.items():
+        dosage = {
+            "timing": {
+                "repeat": {
+                    "dayOfWeek": days,
+                    "frequency": len(days),
+                    "period": 1,
+                    "periodUnit": "wk",
+                    **bounds
+                }
+            },
+            "doseAndRate": [
+                {
+                    "doseQuantity": {
+                        "value": dose,
+                        "unit": unit,
+                        "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
+                        "code": "1"
+                    }
+                }
+            ]
+        }
+        resource["dosageInstruction"].append(dosage)
 
     return resource

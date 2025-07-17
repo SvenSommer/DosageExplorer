@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from dosage.builder import build_freetext, build_mman, build_timeofday
+from dosage.builder import build_freetext, build_mman, build_timeofday, build_weekday
 from dosage.text_generator import GematikDosageTextGenerator
 
 app = FastAPI()
@@ -70,6 +70,39 @@ async def generate_timeofday(request: Request):
     return templates.TemplateResponse(
         "result_fragment.html",
         {"request": request, "fhir": fhir, "text": text}
+    )
+
+@app.post("/generate/weekday", response_class=HTMLResponse)
+async def generate_weekday(request: Request):
+    form = await request.form()
+
+    days_and_doses = []
+    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
+        if form.get(f"day_{day}") == "1":
+            try:
+                dose = float(form.get(f"dose_{day}", 0))
+                if dose > 0:
+                    days_and_doses.append((day, dose))
+            except ValueError:
+                continue  # ignorieren, wenn Eingabe fehlerhaft
+
+    medication = form.get("medication") or "Arzneimittel"
+    unit = form.get("unit") or "Stück"
+
+    duration_unit = "wk"  # Fest für dieses Schema
+    duration_value = int(form.get("duration_value") or 0) or None
+    duration_unit = form.get("duration_unit") or "wk"
+    fhir = build_weekday(
+        days_and_doses,
+        duration_value=duration_value,
+        duration_unit=duration_unit,
+        medication=medication,
+        unit=unit
+    )
+    text = generate_dosage_texts(fhir)
+
+    return templates.TemplateResponse(
+        "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
     )
 
 def generate_dosage_texts(fhir: dict) -> str:
