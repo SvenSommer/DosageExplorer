@@ -35,25 +35,30 @@ def build_freetext(text: str) -> dict:
 
 
 def build_mman(
-    morning: int,
-    noon: int,
-    evening: int,
-    night: int,
+    morning: float = 0,
+    noon: float = 0,
+    evening: float = 0,
+    night: float = 0,
     duration_days: int = None,
     medication: str = "Arzneimittel",
-    dose: float = 1,
     unit: str = "Stück"
 ) -> dict:
-    when_map = {
-        "morning": ("MORN", morning),
-        "noon": ("NOON", noon),
-        "evening": ("EVE", evening),
-        "night": ("NIGHT", night)
+    """
+    Erzeugt ein FHIR-konformes MedicationRequest-Objekt für das MMAN-Schema.
+    """
+
+    time_slots = {
+        "MORN": morning,
+        "NOON": noon,
+        "EVE": evening,
+        "NIGHT": night,
     }
 
-    selected_times = [code for name, (code, value) in when_map.items() if value > 0]
+    # Sammle nur belegte Zeiten
+    active_slots = {k: v for k, v in time_slots.items() if v > 0}
 
-    dosage = {
+    # Basis-Ressource
+    resource = {
         "resourceType": "MedicationRequest",
         "meta": {
             "profile": [
@@ -64,26 +69,69 @@ def build_mman(
         "intent": "order",
         "medicationCodeableConcept": {"text": medication},
         "subject": {"display": "Patient"},
-        "dosageInstruction": [
-            {
+        "dosageInstruction": [],
+    }
+
+    # Bilde duration falls gesetzt
+    bounds = (
+        {
+            "boundsDuration": {
+                "value": duration_days,
+                "unit": "d",
+                "system": "http://unitsofmeasure.org",
+                "code": "d"
+            }
+        }
+        if duration_days
+        else {}
+    )
+
+    doses = list(active_slots.values())
+    same_dose = all(d == doses[0] for d in doses)
+
+    if same_dose:
+        # eine Dosage-Instanz mit mehreren Zeitpunkten
+        dosage = {
+            "timing": {
+                "repeat": {
+                    "when": list(active_slots.keys()),
+                    **bounds
+                }
+            },
+            "doseAndRate": [
+                {
+                    "doseQuantity": {
+                        "value": doses[0],
+                        "unit": unit,
+                        "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
+                        "code": "1"
+                    }
+                }
+            ]
+        }
+        resource["dosageInstruction"].append(dosage)
+
+    else:
+        # eigene Instanz je Tageszeit
+        for when, value in active_slots.items():
+            dosage = {
                 "timing": {
                     "repeat": {
-                        "when": selected_times,
-                        **({"duration": duration_days, "durationUnit": "d"} if duration_days else {})
+                        "when": [when],
+                        **bounds
                     }
                 },
                 "doseAndRate": [
                     {
                         "doseQuantity": {
-                            "value": dose,
+                            "value": value,
                             "unit": unit,
                             "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                            "code": "1",
+                            "code": "1"
                         }
                     }
-                ],
+                ]
             }
-        ],
-    }
+            resource["dosageInstruction"].append(dosage)
 
-    return dosage
+    return resource
