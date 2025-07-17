@@ -1,0 +1,20 @@
+{% if schema == "mman" %}
+    <form hx-post="/generate/mman" hx-target="#result" class="space-y-4">
+        <input type="hidden" name="schema" value="mman" />
+        <label class="block">Morgens: <input type="number" name="morning" min="0" class="mt-1 w-full rounded border" /></label>
+        <label class="block">Mittags: <input type="number" name="noon" min="0" class="mt-1 w-full rounded border" /></label>
+        <label class="block">Abends: <input type="number" name="evening" min="0" class="mt-1 w-full rounded border" /></label>
+        <label class="block">Nachts: <input type="number" name="night" min="0" class="mt-1 w-full rounded border" /></label>
+        <label class="block">Dauer (Tage): <input type="number" name="duration_days" min="1" class="mt-1 w-full rounded border" /></label>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">FHIR-Objekt generieren</button>
+    </form>
+{% else %}
+    <form hx-post="/generate/freetext" hx-target="#result" class="space-y-4">
+        <input type="hidden" name="schema" value="freetext" />
+        <label class="block">
+            <span class="text-gray-700">Freitext-Dosierung</span>
+            <input type="text" name="freetext" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+        </label>
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">FHIR-Objekt generieren</button>
+    </form>
+{% endif %}
