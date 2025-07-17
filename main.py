@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from dosage.builder import build_freetext, build_mman
+from dosage.builder import build_freetext, build_mman, build_timeofday
 from dosage.text_generator import GematikDosageTextGenerator
 
 app = FastAPI()
@@ -43,6 +43,33 @@ async def generate_mman(
     text = generate_dosage_texts(fhir)
     return templates.TemplateResponse(
         "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
+    )
+
+@app.post("/generate/timeofday", response_class=HTMLResponse)
+async def generate_timeofday(request: Request):
+    form = await request.form()
+
+    times = []
+    doses = []
+    for key in sorted(form.keys()):
+        if key.startswith("time_"):
+            idx = key.split("_")[1]
+            time = form.get(f"time_{idx}")
+            dose = form.get(f"dose_{idx}")
+            if time and dose:
+                times.append(time)
+                doses.append(float(dose))
+
+    duration_days = int(form.get("duration_days") or 0) or None
+    medication = form.get("medication") or "Arzneimittel"
+    unit = form.get("unit") or "Stück"
+
+    fhir = build_timeofday(times, doses, duration_days, medication, unit)
+    text = generate_dosage_texts(fhir)
+
+    return templates.TemplateResponse(
+        "result_fragment.html",
+        {"request": request, "fhir": fhir, "text": text}
     )
 
 def generate_dosage_texts(fhir: dict) -> str:

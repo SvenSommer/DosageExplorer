@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 def build_freetext(text: str) -> dict:
     return {
         "resourceType": "MedicationRequest",
@@ -33,6 +35,64 @@ def build_freetext(text: str) -> dict:
         ],
     }
 
+def build_timeofday(
+    times: List[str],  # Uhrzeiten als "HH:MM" oder "HH:MM:SS"
+    doses: List[float],  # Dosis je Uhrzeit, gleiche Länge wie times
+    duration_days: Optional[int] = None,
+    medication: str = "Arzneimittel",
+    unit: str = "Stück",
+) -> dict:
+    if len(times) != len(doses):
+        raise ValueError("Die Anzahl der Uhrzeiten und Dosen muss übereinstimmen.")
+
+    resource = {
+        "resourceType": "MedicationRequest",
+        "meta": {
+            "profile": [
+                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
+            ]
+        },
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {"text": medication},
+        "subject": {"display": "Patient"},
+        "dosageInstruction": [],
+    }
+
+    # Gruppiere Dosierungen mit identischer Dosis in einer gemeinsamen Dosage-Instanz
+    grouped: dict[float, List[str]] = {}
+    for time, dose in zip(times, doses):
+        time = (
+            time if len(time) == 8 else time + ":00"
+        )  # normalize "HH:MM" → "HH:MM:00"
+        grouped.setdefault(dose, []).append(time)
+
+    for dose, times in grouped.items():
+        dosage = {
+            "timing": {"repeat": {"timeOfDay": times}},
+            "doseAndRate": [
+                {
+                    "doseQuantity": {
+                        "value": dose,
+                        "unit": unit,
+                        "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
+                        "code": "1",
+                    }
+                }
+            ],
+        }
+        if duration_days:
+            dosage["timing"]["repeat"]["boundsDuration"] = {
+                "value": duration_days,
+                "unit": "d",
+                "system": "http://unitsofmeasure.org",
+                "code": "d",
+            }
+
+        resource["dosageInstruction"].append(dosage)
+
+    return resource
+
 
 def build_mman(
     morning: float = 0,
@@ -41,7 +101,7 @@ def build_mman(
     night: float = 0,
     duration_days: int = None,
     medication: str = "Arzneimittel",
-    unit: str = "Stück"
+    unit: str = "Stück",
 ) -> dict:
     """
     Erzeugt ein FHIR-konformes MedicationRequest-Objekt für das MMAN-Schema.
@@ -79,7 +139,7 @@ def build_mman(
                 "value": duration_days,
                 "unit": "d",
                 "system": "http://unitsofmeasure.org",
-                "code": "d"
+                "code": "d",
             }
         }
         if duration_days
@@ -92,22 +152,17 @@ def build_mman(
     if same_dose:
         # eine Dosage-Instanz mit mehreren Zeitpunkten
         dosage = {
-            "timing": {
-                "repeat": {
-                    "when": list(active_slots.keys()),
-                    **bounds
-                }
-            },
+            "timing": {"repeat": {"when": list(active_slots.keys()), **bounds}},
             "doseAndRate": [
                 {
                     "doseQuantity": {
                         "value": doses[0],
                         "unit": unit,
                         "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                        "code": "1"
+                        "code": "1",
                     }
                 }
-            ]
+            ],
         }
         resource["dosageInstruction"].append(dosage)
 
@@ -115,22 +170,17 @@ def build_mman(
         # eigene Instanz je Tageszeit
         for when, value in active_slots.items():
             dosage = {
-                "timing": {
-                    "repeat": {
-                        "when": [when],
-                        **bounds
-                    }
-                },
+                "timing": {"repeat": {"when": [when], **bounds}},
                 "doseAndRate": [
                     {
                         "doseQuantity": {
                             "value": value,
                             "unit": unit,
                             "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                            "code": "1"
+                            "code": "1",
                         }
                     }
-                ]
+                ],
             }
             resource["dosageInstruction"].append(dosage)
 

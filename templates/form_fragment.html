@@ -58,6 +58,53 @@
     Dosierung generieren
   </button>
 </form>
+{% elif schema == "timeofday" %}
+<form hx-post="/generate/timeofday" hx-target="#result" class="space-y-4">
+  <input type="hidden" name="schema" value="timeofday" />
+  <div id="timeofday-inputs" class="space-y-2">
+    <!-- Initiales Feld -->
+    <div class="flex gap-2">
+      <input type="time" name="time_1" class="border rounded p-1" required />
+      <input type="number" name="dose_1" step="any" min="0" class="border rounded p-1 w-24" required placeholder="Dosis" />
+    </div>
+  </div>
+
+  <button type="button" onclick="addTimeOfDayField()" class="text-blue-600 hover:underline text-sm">+ Weitere Uhrzeit hinzufügen</button>
+
+  <label class="block">
+    Dauer (Tage):
+    <input type="number" name="duration_days" min="1" class="mt-1 w-full rounded border" />
+  </label>
+
+  <label class="block">
+    Arzneimittel:
+    <input type="text" name="medication" class="mt-1 w-full rounded border" value="Arzneimittel" />
+  </label>
+
+  <label class="block">
+    Einheit:
+    <input type="text" name="unit" class="mt-1 w-full rounded border" value="Stück" />
+  </label>
+
+  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+    FHIR-Objekt generieren
+  </button>
+</form>
+
+<script>
+let timeOfDayCount = 1;
+function addTimeOfDayField() {
+  timeOfDayCount++;
+  const container = document.getElementById("timeofday-inputs");
+  const div = document.createElement("div");
+  div.className = "flex gap-2";
+  div.innerHTML = `
+    <input type="time" name="time_${timeOfDayCount}" class="border rounded p-1" required />
+    <input type="number" name="dose_${timeOfDayCount}" step="any" min="0" class="border rounded p-1 w-24" required placeholder="Dosis" />
+  `;
+  container.appendChild(div);
+}
+</script>
 {% else %}
 <form hx-post="/generate/freetext" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="freetext" />
