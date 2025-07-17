@@ -259,3 +259,70 @@ def build_weekday(
         resource["dosageInstruction"].append(dosage)
 
     return resource
+
+def build_interval(
+    frequency: int,
+    period: int,
+    period_unit: str,  # "d", "wk", "mo"
+    duration_value: Optional[int] = None,
+    duration_unit: Optional[str] = None,
+    medication: str = "Arzneimittel",
+    dose: float = 1.0,
+    unit: str = "Stück"
+) -> dict:
+    """
+    Erzeugt ein FHIR-konformes MedicationRequest für wiederkehrende Intervalle.
+    """
+
+    # Optionale Dauer (z. B. 6 Wochen) korrekt in boundsDuration umsetzen
+    bounds = {}
+    if duration_value and duration_unit:
+        bounds = {
+            "boundsDuration": {
+                "value": duration_value,
+                "unit": {
+                    "d": "Tag(e)",
+                    "wk": "Woche(n)",
+                    "mo": "Monat(e)"
+                }.get(duration_unit, duration_unit),
+                "system": "http://unitsofmeasure.org",
+                "code": duration_unit
+            }
+        }
+
+    resource = {
+        "resourceType": "MedicationRequest",
+        "meta": {
+            "profile": [
+                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
+            ]
+        },
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {"text": medication},
+        "subject": {"display": "Patient"},
+        "dosageInstruction": [
+            {
+                "timing": {
+                    "repeat": {
+                        "frequency": frequency,
+                        "period": period,
+                        "periodUnit": period_unit,
+                        **bounds
+                    }
+                },
+                "doseAndRate": [
+                    {
+                        "doseQuantity": {
+                            "value": dose,
+                            "unit": unit,
+                            "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
+                            "code": "1"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    return resource

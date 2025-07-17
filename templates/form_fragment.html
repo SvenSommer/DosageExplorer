@@ -123,7 +123,61 @@ function addTimeOfDayField() {
     </label>
 
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-    FHIR-Objekt generieren
+    Dosierung generieren
+  </button>
+</form>
+{% elif schema == "interval" %}
+<form hx-post="/generate/interval" hx-target="#result" class="space-y-4">
+  <input type="hidden" name="schema" value="interval" />
+
+  <label class="block">
+    Häufigkeit (frequency):
+    <input type="number" name="frequency" min="1" class="mt-1 w-full rounded border" placeholder="z. B. 1" required />
+  </label>
+
+  <label class="block">
+    Intervall (period):
+    <input type="number" name="period" min="1" class="mt-1 w-full rounded border" placeholder="z. B. 8" required />
+  </label>
+
+  <label class="block">
+    Zeiteinheit des Intervalls (periodUnit):
+    <select name="period_unit" class="mt-1 w-full rounded border" required>
+      <option value="d">Tage</option>
+      <option value="wk">Wochen</option>
+      <option value="mo">Monate</option>
+    </select>
+  </label>
+
+  <label class="block">
+    Dauer der Anwendung (optional):
+    <div class="flex gap-2 mt-1">
+      <input type="number" name="duration_value" min="1" class="w-24 rounded border px-2 py-1" placeholder="z. B. 10" />
+      <select name="duration_unit" class="rounded border px-2 py-1">
+        <option value="d">Tag(e)</option>
+        <option value="wk" selected>Woche(n)</option>
+        <option value="mo">Monat(e)</option>
+      </select>
+    </div>
+  </label>
+
+  <label class="block">
+    Arzneimittel:
+    <input type="text" name="medication" class="mt-1 w-full rounded border" value="Arzneimittel" />
+  </label>
+
+  <label class="block">
+    Dosis (pro Einnahme):
+    <input type="number" step="any" name="dose" min="0.1" class="mt-1 w-full rounded border" value="1" />
+  </label>
+
+  <label class="block">
+    Einheit:
+    <input type="text" name="unit" class="mt-1 w-full rounded border" value="Stück" />
+  </label>
+
+  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+    Dosierung generieren
   </button>
 </form>
 {% else %}

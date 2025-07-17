@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from dosage.builder import build_freetext, build_mman, build_timeofday, build_weekday
+from dosage.builder import build_freetext, build_interval, build_mman, build_timeofday, build_weekday
 from dosage.text_generator import GematikDosageTextGenerator
 
 app = FastAPI()
@@ -98,6 +98,39 @@ async def generate_weekday(request: Request):
         duration_unit=duration_unit,
         medication=medication,
         unit=unit
+    )
+    text = generate_dosage_texts(fhir)
+
+    return templates.TemplateResponse(
+        "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
+    )
+
+@app.post("/generate/interval", response_class=HTMLResponse)
+async def generate_interval(request: Request):
+    form = await request.form()
+    frequency = int(form.get("frequency"))
+    period = int(form.get("period"))
+    period_unit = form.get("period_unit")
+
+    duration_value = form.get("duration_value")
+    duration_unit = form.get("duration_unit")
+
+    duration_value = int(duration_value) if duration_value else None
+    duration_unit = duration_unit if duration_value else None
+
+    medication = form.get("medication") or "Arzneimittel"
+    dose = float(form.get("dose") or 1)
+    unit = form.get("unit") or "Stück"
+
+    fhir = build_interval(
+        frequency=frequency,
+        period=period,
+        period_unit=period_unit,
+        duration_value=duration_value,
+        duration_unit=duration_unit,
+        medication=medication,
+        dose=dose,
+        unit=unit,
     )
     text = generate_dosage_texts(fhir)
 
