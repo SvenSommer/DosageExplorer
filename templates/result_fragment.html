@@ -1,8 +1,11 @@
-{% if text %}
-<h3 class="text-lg font-semibold mt-4">Generierter Dosierungstext</h3>
-<p class="bg-green-100 p-4 rounded text-sm whitespace-pre-line">{{ text | safe }}</p>
-{% endif %} {% if fhir %}
-<h2 class="text-xl font-semibold mb-2">FHIR-Objekt</h2>
-<pre class="bg-gray-200 p-4 rounded text-sm">{{ fhir | tojson(indent=2) }}</pre>
+<div id="result">
+  {% if text %}
+  <h3 class="text-lg font-semibold mt-4">Generierter Dosierungstext</h3>
+  <p class="bg-green-100 p-4 rounded text-sm whitespace-pre-line">{{ text | safe }}</p>
+  {% endif %}
 
-{% endif %}
+  {% if fhir %}
+  <h2 class="text-xl font-semibold mb-2">FHIR-Objekt</h2>
+  <pre class="bg-gray-200 p-4 rounded text-sm">{{ fhir | tojson(indent=2) }}</pre>
+  {% endif %}
+</div>
