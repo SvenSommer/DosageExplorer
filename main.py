@@ -1,8 +1,9 @@
+from typing import Optional
 from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from dosage.builder import build_freetext, build_interval, build_mman, build_timeofday, build_weekday
+from dosage.builder import build_freetext, build_interval, build_interval_with_times, build_mman, build_timeofday, build_weekday
 from dosage.text_generator import GematikDosageTextGenerator
 
 app = FastAPI()
@@ -137,6 +138,54 @@ async def generate_interval(request: Request):
     return templates.TemplateResponse(
         "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
     )
+
+@app.post("/generate/combined_interval_time", response_class=HTMLResponse)
+async def generate_interval_timed(request: Request):
+    form = await request.form()
+
+    period = int(form.get("period"))
+    period_unit = form.get("period_unit")
+
+    duration_value = form.get("duration_value")
+    duration_unit = form.get("duration_unit")
+
+    duration_value = int(duration_value) if duration_value else None
+    duration_unit = duration_unit if duration_value else None
+
+    medication = form.get("medication") or "Arzneimittel"
+    unit = form.get("unit") or "Stück"
+
+    # Mehrere Zeitpunkte & Dosierungen
+    schedule = []
+    i = 1
+    while True:
+        time_key = f"time{i}"
+        dose_key = f"dose{i}"
+        if time_key in form and dose_key in form:
+            time_val = form.get(time_key).strip()
+            dose_val = float(form.get(dose_key).strip() or 0)
+            if time_val and dose_val > 0:
+                schedule.append((time_val, dose_val))
+            i += 1
+        else:
+            break
+
+    fhir = build_interval_with_times(
+        schedule=schedule,
+        period=period,
+        period_unit=period_unit,
+        duration_days=duration_value if duration_unit == "d" else None,  # aktuell nur Tag-basierte Begrenzung
+        medication=medication,
+        unit=unit,
+    )
+
+    text = generate_dosage_texts(fhir)
+
+    return templates.TemplateResponse(
+        "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
+    )
+
+
 
 def generate_dosage_texts(fhir: dict) -> str:
     generator = GematikDosageTextGenerator()

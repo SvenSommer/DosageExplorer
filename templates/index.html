@@ -20,7 +20,10 @@
                 <option value="mman" {% if schema == "mman" %}selected{% endif %}>Tageszeiten-Schema (MMAN)</option>
                 <option value="timeofday" {% if schema == "timeofday" %}selected{% endif %}>Uhrzeit-Schema</option>
                 <option value="weekday" {% if schema == "weekday" %}selected{% endif %}>Wochentag-Schema</option>
-                <option value="interval" {% if schema == "interval" %}selected{% endif %}>Intervallschema</option>
+                <option value="interval" {% if schema == "interval" %}selected{% endif %}>wiederkehrende Intervalle</option>
+                <option value="combined_interval_time" {% if schema == "combined_interval_time" %}selected{% endif %}>
+                    Kombinationen von Zeitintervallen
+                </option>
             </select>
         </label>
 

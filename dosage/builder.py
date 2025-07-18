@@ -260,6 +260,78 @@ def build_weekday(
 
     return resource
 
+def build_interval_with_times(
+    schedule: list[tuple[str, float]],  # z. B. [("08:00:00", 1.0), ("18:00:00", 2.0)] oder [("MORN", 1.0)]
+    period: int = 1,
+    period_unit: str = "d",  # "d" = Tag, "wk" = Woche
+    duration_days: int = None,
+    medication: str = "Arzneimittel",
+    unit: str = "Stück"
+) -> dict:
+    """
+    Erzeugt ein FHIR-konformes MedicationRequest-Objekt für das kombinierte Intervallschema mit Uhrzeit- oder Tageszeitbezug.
+    """
+
+    resource = {
+        "resourceType": "MedicationRequest",
+        "meta": {
+            "profile": [
+                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
+            ]
+        },
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {"text": medication},
+        "subject": {"display": "Patient"},
+        "dosageInstruction": []
+    }
+
+    bounds = (
+        {
+            "boundsDuration": {
+                "value": duration_days,
+                "unit": "d",
+                "system": "http://unitsofmeasure.org",
+                "code": "d"
+            }
+        }
+        if duration_days
+        else {}
+    )
+
+    for time_value, dose in schedule:
+        # Bestimme, ob timeOfDay oder when verwendet werden soll
+        if ":" in time_value:
+            timing_field = "timeOfDay"
+        else:
+            timing_field = "when"
+
+        dosage = {
+            "timing": {
+                "repeat": {
+                    "frequency": 1,
+                    "period": period,
+                    "periodUnit": period_unit,
+                    timing_field: [time_value],
+                    **bounds
+                }
+            },
+            "doseAndRate": [
+                {
+                    "doseQuantity": {
+                        "value": dose,
+                        "unit": unit,
+                        "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
+                        "code": "1"
+                    }
+                }
+            ]
+        }
+
+        resource["dosageInstruction"].append(dosage)
+
+    return resource
+
 def build_interval(
     frequency: int,
     period: int,

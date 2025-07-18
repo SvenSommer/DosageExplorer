@@ -96,7 +96,7 @@ function addTimeOfDayField() {
 }
 </script>
 {% elif schema == "weekday" %}
-<form hx-post="/generate/weekday" hx-target="#result" class="space-y-4">
+<form hx-post="/generate/interval_combined" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="weekday" />
   
   <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -169,6 +169,60 @@ function addTimeOfDayField() {
   <label class="block">
     Dosis (pro Einnahme):
     <input type="number" step="any" name="dose" min="0.1" class="mt-1 w-full rounded border" value="1" />
+  </label>
+
+  <label class="block">
+    Einheit:
+    <input type="text" name="unit" class="mt-1 w-full rounded border" value="Stück" />
+  </label>
+
+  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+    Dosierung generieren
+  </button>
+</form>
+{% elif schema == "combined_interval_time" %}
+<form hx-post="/generate/combined_interval_time" hx-target="#result" class="space-y-4">
+  <input type="hidden" name="schema" value="combined_interval_time" />
+
+  <label class="block">
+    Intervall (alle wie viele Tage?):
+    <input type="number" name="period" min="1" class="mt-1 w-full rounded border" placeholder="z. B. 2" required />
+  </label>
+
+  <label class="block">
+    Einheit:
+    <select name="period_unit" class="mt-1 w-full rounded border" required>
+      <option value="d">Tage</option>
+      <option value="wk">Wochen</option>
+    </select>
+  </label>
+
+  <div class="space-y-2">
+    <label class="block font-semibold">Zeitpunkte und Dosierungen:</label>
+    {% for i in range(1, 4) %}
+    <div class="flex gap-2">
+      <input type="text" name="time{{ i }}" placeholder="z. B. 08:00:00 oder MORN"
+        class="w-1/2 rounded border px-2 py-1" />
+      <input type="number" name="dose{{ i }}" step="any" placeholder="Dosis" class="w-1/2 rounded border px-2 py-1" />
+    </div>
+    {% endfor %}
+  </div>
+
+  <label class="block">
+    Dauer der Anwendung (optional):
+    <div class="flex gap-2 mt-1">
+      <input type="number" name="duration_value" min="1" class="w-24 rounded border px-2 py-1"
+        placeholder="z. B. 10" />
+      <select name="duration_unit" class="rounded border px-2 py-1">
+        <option value="d" selected>Tag(e)</option>
+        <option value="wk">Woche(n)</option>
+      </select>
+    </div>
+  </label>
+
+  <label class="block">
+    Arzneimittel:
+    <input type="text" name="medication" class="mt-1 w-full rounded border" value="Arzneimittel" />
   </label>
 
   <label class="block">
