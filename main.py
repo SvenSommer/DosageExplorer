@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from dosage.builder import build_freetext, build_interval, build_interval_with_times, build_mman, build_timeofday, build_weekday
+from dosage.builder import build_freetext, build_interval, build_interval_with_times, build_mman, build_timeofday, build_weekday, build_weekday_based
 from dosage.text_generator import GematikDosageTextGenerator
 
 app = FastAPI()
@@ -179,6 +179,55 @@ async def generate_interval_timed(request: Request):
         unit=unit,
     )
 
+    text = generate_dosage_texts(fhir)
+
+    return templates.TemplateResponse(
+        "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
+    )
+
+@app.post("/generate/weekday_combined", response_class=HTMLResponse)
+async def generate_weekday_combined(request: Request):
+    form = await request.form()
+
+    medication = form.get("medication") or "Arzneimittel"
+    unit = form.get("unit") or "Stück"
+    duration_weeks = form.get("duration_weeks")
+    duration_weeks = int(duration_weeks) if duration_weeks else None
+
+    entries = []
+    i = 1
+    while True:
+        days_key = f"days{i}"
+        time_key = f"time{i}"
+        when_key = f"when{i}"
+        dose_key = f"dose{i}"
+
+        if days_key not in form:
+            break
+
+        days = form.getlist(days_key)
+        time = form.get(time_key, "").strip()
+        when = form.get(when_key, "").strip()
+        dose = form.get(dose_key, "").strip()
+
+        if not days or (not time and not when) or not dose:
+            i += 1
+            continue
+
+        entries.append({
+            "days": days,
+            "time": time if time else None,
+            "when": when if when else None,
+            "dose": float(dose)
+        })
+        i += 1
+
+    fhir = build_weekday_based(
+        entries=entries,
+        duration_weeks=duration_weeks,
+        medication=medication,
+        unit=unit
+    )
     text = generate_dosage_texts(fhir)
 
     return templates.TemplateResponse(

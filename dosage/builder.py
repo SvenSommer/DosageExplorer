@@ -398,3 +398,74 @@ def build_interval(
     }
 
     return resource
+
+def build_weekday_based(
+    entries: list[dict],
+    duration_weeks: int = None,
+    medication: str = "Arzneimittel",
+    unit: str = "Stück"
+) -> dict:
+    """
+    Erzeugt ein FHIR-konformes MedicationRequest für ein wochentagsbasiertes Schema.
+
+    :param entries: Liste von Dosen, z. B.
+        [
+            {"days": ["mon", "fri"], "when": "MORN", "dose": 1},
+            {"days": ["mon", "fri"], "time": "08:00:00", "dose": 2},
+        ]
+    """
+    dosage_instruction = []
+    for entry in entries:
+        days = entry.get("days", [])
+        time = entry.get("time")  # Uhrzeit
+        when = entry.get("when")  # Tageszeit
+        dose = entry.get("dose", 1.0)
+
+        # frequency = len(days) * len([when|time])
+        frequency = len(days)
+
+        repeat = {
+            "frequency": frequency,
+            "period": 1,
+            "periodUnit": "wk",
+            "dayOfWeek": days,
+        }
+
+        if time:
+            repeat["timeOfDay"] = [time]
+        elif when:
+            repeat["when"] = [when]
+
+        if duration_weeks:
+            repeat["boundsDuration"] = {
+                "value": duration_weeks,
+                "unit": "wk",
+                "system": "http://unitsofmeasure.org",
+                "code": "wk"
+            }
+
+        dosage_instruction.append({
+            "timing": {"repeat": repeat},
+            "doseAndRate": [{
+                "doseQuantity": {
+                    "value": dose,
+                    "unit": unit,
+                    "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
+                    "code": "1"
+                }
+            }]
+        })
+
+    return {
+        "resourceType": "MedicationRequest",
+        "meta": {
+            "profile": [
+                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
+            ]
+        },
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {"text": medication},
+        "subject": {"display": "Patient"},
+        "dosageInstruction": dosage_instruction
+    }

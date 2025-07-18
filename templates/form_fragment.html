@@ -234,6 +234,70 @@ function addTimeOfDayField() {
     Dosierung generieren
   </button>
 </form>
+{% elif schema == "weekday_combined" %}
+<form hx-post="/generate/weekday" hx-target="#result" class="space-y-4">
+  <input type="hidden" name="schema" value="weekday_combined" />
+
+  // Wochentage und Dosen für n Zeitpunkte (this should be dynamic)
+  {% for i in range(1, 4) %}
+  <fieldset class="border p-3 rounded">
+    <legend class="font-semibold text-sm mb-2">Zeitpunkt {{ i }}</legend>
+
+    <label class="block mb-2">
+      Wochentage:
+      <select name="days{{ i }}" multiple class="mt-1 w-full rounded border">
+        <option value="mon">Montag</option>
+        <option value="tue">Dienstag</option>
+        <option value="wed">Mittwoch</option>
+        <option value="thu">Donnerstag</option>
+        <option value="fri">Freitag</option>
+        <option value="sat">Samstag</option>
+        <option value="sun">Sonntag</option>
+      </select>
+    </label>
+
+    <label class="block mb-2">
+      Tageszeit (when):
+      <select name="when{{ i }}" class="mt-1 w-full rounded border">
+        <option value="">–</option>
+        <option value="MORN">Morgens</option>
+        <option value="NOON">Mittags</option>
+        <option value="EVE">Abends</option>
+        <option value="NIGHT">Nachts</option>
+      </select>
+    </label>
+
+    <label class="block mb-2">
+      Alternativ: Uhrzeit (timeOfDay):
+      <input type="time" name="time{{ i }}" class="mt-1 w-full rounded border" />
+    </label>
+
+    <label class="block">
+      Dosis:
+      <input type="number" step="any" name="dose{{ i }}" class="mt-1 w-full rounded border" placeholder="z. B. 1" />
+    </label>
+  </fieldset>
+  {% endfor %}
+
+  <label class="block">
+    Dauer der Anwendung (Wochen, optional):
+    <input type="number" name="duration_weeks" class="mt-1 w-full rounded border" placeholder="z. B. 3" />
+  </label>
+
+  <label class="block">
+    Arzneimittel:
+    <input type="text" name="medication" class="mt-1 w-full rounded border" value="Arzneimittel" />
+  </label>
+
+  <label class="block">
+    Einheit:
+    <input type="text" name="unit" class="mt-1 w-full rounded border" value="Stück" />
+  </label>
+
+  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+    Dosierung generieren
+  </button>
+</form>
 {% else %}
 <form hx-post="/generate/freetext" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="freetext" />
