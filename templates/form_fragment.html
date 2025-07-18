@@ -105,17 +105,17 @@ function addTimeOfDayField() {
 
   <label class="block">
     Häufigkeit (frequency):
-    <input type="number" name="frequency" min="1" class="mt-1 w-full rounded border" placeholder="z. B. 1" required />
+    <input type="number" name="frequency" min="1" class="w-full border rounded px-2 py-1" required />
   </label>
 
   <label class="block">
     Intervall (period):
-    <input type="number" name="period" min="1" class="mt-1 w-full rounded border" placeholder="z. B. 8" required />
+    <input type="number" name="period" min="1" class="w-full border rounded px-2 py-1" required />
   </label>
 
   <label class="block">
-    Zeiteinheit des Intervalls (periodUnit):
-    <select name="period_unit" class="mt-1 w-full rounded border" required>
+    Zeiteinheit des Intervalls:
+    <select name="period_unit" class="w-full border rounded px-2 py-1" required>
       <option value="d">Tage</option>
       <option value="wk">Wochen</option>
       <option value="mo">Monate</option>
@@ -124,11 +124,11 @@ function addTimeOfDayField() {
 
   <label class="block">
     Dauer der Anwendung (optional):
-    <div class="flex gap-2 mt-1">
-      <input type="number" name="duration_value" min="1" class="w-24 rounded border px-2 py-1" placeholder="z. B. 10" />
-      <select name="duration_unit" class="rounded border px-2 py-1">
+    <div class="flex gap-2">
+      <input type="number" name="duration_value" min="1" class="w-24 border rounded px-2 py-1" />
+      <select name="duration_unit" class="border rounded px-2 py-1">
         <option value="d">Tag(e)</option>
-        <option value="wk" selected>Woche(n)</option>
+        <option value="wk">Woche(n)</option>
         <option value="mo">Monat(e)</option>
       </select>
     </div>
@@ -136,35 +136,36 @@ function addTimeOfDayField() {
 
   <label class="block">
     Arzneimittel:
-    <input type="text" name="medication" class="mt-1 w-full rounded border" value="Arzneimittel" />
+    <input type="text" name="medication" class="w-full border rounded px-2 py-1" />
   </label>
 
   <label class="block">
-    Dosis (pro Einnahme):
-    <input type="number" step="any" name="dose" min="0.1" class="mt-1 w-full rounded border" value="1" />
+    Dosis:
+    <input type="number" name="dose" step="any" min="0.1" class="w-full border rounded px-2 py-1" />
   </label>
 
   <label class="block">
     Einheit:
-    <input type="text" name="unit" class="mt-1 w-full rounded border" value="Stück" />
+    <input type="text" name="unit" class="w-full border rounded px-2 py-1" />
   </label>
 
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
     Dosierung generieren
   </button>
 </form>
+
 {% elif schema == "combined_interval_time" %}
 <form hx-post="/generate/combined_interval_time" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="combined_interval_time" />
 
   <label class="block">
-    Intervall (alle wie viele Tage?):
-    <input type="number" name="period" min="1" class="mt-1 w-full rounded border" placeholder="z. B. 2" required />
+    Intervall (z. B. alle 2 Tage):
+    <input type="number" name="period" min="1" class="w-full border rounded px-2 py-1" required />
   </label>
 
   <label class="block">
     Einheit:
-    <select name="period_unit" class="mt-1 w-full rounded border" required>
+    <select name="period_unit" class="w-full border rounded px-2 py-1">
       <option value="d">Tage</option>
       <option value="wk">Wochen</option>
     </select>
@@ -173,21 +174,19 @@ function addTimeOfDayField() {
   <div class="space-y-2">
     <label class="block font-semibold">Zeitpunkte und Dosierungen:</label>
     {% for i in range(1, 4) %}
-    <div class="flex gap-2">
-      <input type="text" name="time{{ i }}" placeholder="z. B. 08:00:00 oder MORN"
-        class="w-1/2 rounded border px-2 py-1" />
-      <input type="number" name="dose{{ i }}" step="any" placeholder="Dosis" class="w-1/2 rounded border px-2 py-1" />
+    <div class="grid grid-cols-2 gap-2">
+      <input type="text" name="time{{ i }}" class="w-full border rounded px-2 py-1" placeholder="08:00 oder MORN" />
+      <input type="number" name="dose{{ i }}" step="any" class="w-full border rounded px-2 py-1" placeholder="Dosis" />
     </div>
     {% endfor %}
   </div>
 
   <label class="block">
     Dauer der Anwendung (optional):
-    <div class="flex gap-2 mt-1">
-      <input type="number" name="duration_value" min="1" class="w-24 rounded border px-2 py-1"
-        placeholder="z. B. 10" />
-      <select name="duration_unit" class="rounded border px-2 py-1">
-        <option value="d" selected>Tag(e)</option>
+    <div class="flex gap-2">
+      <input type="number" name="duration_value" min="1" class="w-24 border rounded px-2 py-1" />
+      <select name="duration_unit" class="border rounded px-2 py-1">
+        <option value="d">Tage</option>
         <option value="wk">Woche(n)</option>
       </select>
     </div>
@@ -195,30 +194,30 @@ function addTimeOfDayField() {
 
   <label class="block">
     Arzneimittel:
-    <input type="text" name="medication" class="mt-1 w-full rounded border" value="Arzneimittel" />
+    <input type="text" name="medication" class="w-full border rounded px-2 py-1" />
   </label>
 
   <label class="block">
     Einheit:
-    <input type="text" name="unit" class="mt-1 w-full rounded border" value="Stück" />
+    <input type="text" name="unit" class="w-full border rounded px-2 py-1" />
   </label>
 
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
     Dosierung generieren
   </button>
 </form>
+
 {% elif schema == "weekday_combined" %}
 <form hx-post="/generate/weekday" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="weekday_combined" />
 
-  // Wochentage und Dosen für n Zeitpunkte (this should be dynamic)
   {% for i in range(1, 4) %}
   <fieldset class="border p-3 rounded">
     <legend class="font-semibold text-sm mb-2">Zeitpunkt {{ i }}</legend>
 
     <label class="block mb-2">
       Wochentage:
-      <select name="days{{ i }}" multiple class="mt-1 w-full rounded border">
+      <select name="days{{ i }}" multiple class="w-full border rounded px-2 py-1">
         <option value="mon">Montag</option>
         <option value="tue">Dienstag</option>
         <option value="wed">Mittwoch</option>
@@ -230,8 +229,8 @@ function addTimeOfDayField() {
     </label>
 
     <label class="block mb-2">
-      Tageszeit (when):
-      <select name="when{{ i }}" class="mt-1 w-full rounded border">
+      Tageszeit:
+      <select name="when{{ i }}" class="w-full border rounded px-2 py-1">
         <option value="">–</option>
         <option value="MORN">Morgens</option>
         <option value="NOON">Mittags</option>
@@ -241,51 +240,47 @@ function addTimeOfDayField() {
     </label>
 
     <label class="block mb-2">
-      Alternativ: Uhrzeit (timeOfDay):
-      <input type="time" name="time{{ i }}" class="mt-1 w-full rounded border" />
+      Alternativ: Uhrzeit:
+      <input type="time" name="time{{ i }}" class="w-full border rounded px-2 py-1" />
     </label>
 
     <label class="block">
       Dosis:
-      <input type="number" step="any" name="dose{{ i }}" class="mt-1 w-full rounded border" placeholder="z. B. 1" />
+      <input type="number" step="any" name="dose{{ i }}" class="w-full border rounded px-2 py-1" />
     </label>
   </fieldset>
   {% endfor %}
 
   <label class="block">
-    Dauer der Anwendung (Wochen, optional):
-    <input type="number" name="duration_weeks" class="mt-1 w-full rounded border" placeholder="z. B. 3" />
+    Dauer (Wochen, optional):
+    <input type="number" name="duration_weeks" class="w-full border rounded px-2 py-1" />
   </label>
 
   <label class="block">
     Arzneimittel:
-    <input type="text" name="medication" class="mt-1 w-full rounded border" value="Arzneimittel" />
+    <input type="text" name="medication" class="w-full border rounded px-2 py-1" />
   </label>
 
   <label class="block">
     Einheit:
-    <input type="text" name="unit" class="mt-1 w-full rounded border" value="Stück" />
+    <input type="text" name="unit" class="w-full border rounded px-2 py-1" />
   </label>
 
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
     Dosierung generieren
   </button>
 </form>
+
 {% else %}
 <form hx-post="/generate/freetext" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="freetext" />
+
   <label class="block">
-    <span class="text-gray-700">Freitext-Dosierung</span>
-    <input
-      type="text"
-      name="freetext"
-      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-    />
+    Freitext-Dosierung:
+    <input type="text" name="freetext" class="w-full border rounded px-2 py-1" />
   </label>
-  <button
-    type="submit"
-    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-  >
+
+  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
     Dosierung generieren
   </button>
 </form>
