@@ -78,12 +78,13 @@ async def generate_interval(request: Request):
 @app.post("/generate/combined_interval_time", response_class=HTMLResponse)
 async def generate_combined_interval_time(request: Request):
     form = await request.form()
+    frequency = int(form.get("frequency"))
     period = int(form.get("period"))
     period_unit = form.get("period_unit")
     duration_value, duration_unit = extract_duration(form)
     medication = form.get("medication") or "Arzneimittel"
     unit = form.get("unit") or "Stück"
-    schedule = extract_schedule(form)
+    schedule = extract_combined_schedule(form)
     fhir = build_interval_with_times(schedule, period, period_unit, duration_value, medication, unit, duration_unit)
     text = generate_dosage_texts(fhir)
     return templates.TemplateResponse("result_fragment.html", {"request": request, "fhir": fhir, "text": text})
@@ -94,19 +95,8 @@ async def generate_weekday_combined(request: Request):
     medication = form.get("medication") or "Arzneimittel"
     unit = form.get("unit") or "Stück"
     duration_value, duration_unit = extract_duration(form)
-    entries = []
-    i = 1
-    while True:
-        days = form.getlist(f"days{i}")
-        time = form.get(f"time{i}", "").strip()
-        when = form.get(f"when{i}", "").strip()
-        dose = form.get(f"dose{i}", "").strip()
-        if not days and not dose:
-            break
-        if days and dose and (when or time):
-            entries.append({"days": days, "time": time or None, "when": when or None, "dose": float(dose)})
-        i += 1
-    fhir = build_weekday_based(entries, duration_value, medication, unit, duration_unit)
+    schedule = extract_combined_schedule(form, with_days=True)
+    fhir = build_weekday_based(schedule, duration_value, medication, unit, duration_unit)
     text = generate_dosage_texts(fhir)
     return templates.TemplateResponse("result_fragment.html", {"request": request, "fhir": fhir, "text": text})
 
@@ -128,20 +118,35 @@ def extract_times_and_doses(form):
                 doses.append(float(dose))
     return times, doses
 
-def extract_schedule(form):
+def extract_combined_schedule(form, with_days: bool = False):
     schedule = []
     i = 1
     while True:
-        time_key = f"time{i}"
-        dose_key = f"dose{i}"
-        if time_key in form and dose_key in form:
-            time_val = form.get(time_key).strip()
-            dose_val = float(form.get(dose_key).strip() or 0)
-            if time_val and dose_val > 0:
-                schedule.append((time_val, dose_val))
-            i += 1
-        else:
+        dose = form.get(f"dose_{i}")
+        mode = form.get(f"mode_{i}")
+        if not dose:
             break
+
+        entry = {"dose": float(dose)}
+
+        if with_days:
+            entry["days"] = form.getlist(f"days_{i}")
+
+        if mode == "mman":
+            entry.update({
+                "when": {
+                    "morning": int(form.get(f"{i}_morning") or 0),
+                    "noon": int(form.get(f"{i}_noon") or 0),
+                    "evening": int(form.get(f"{i}_evening") or 0),
+                    "night": int(form.get(f"{i}_night") or 0),
+                }
+            })
+        elif mode == "timeofday":
+            entry["time"] = form.get(f"time_{i}")
+
+        schedule.append(entry)
+        i += 1
+
     return schedule
 
 def generate_dosage_texts(fhir: dict) -> str:

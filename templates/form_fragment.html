@@ -2,25 +2,32 @@
 <form hx-post="/generate/{{ schema }}" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="{{ schema }}" />
 
-  {% if schema == "mman" %}
+  {% macro mman_fields(prefix="") %}
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-    {% for label, name in [ ("Morgens", "morning"), ("Mittags", "noon"), ("Abends", "evening"), ("Nachts", "night") ] %}
+    {% for label, name in [("Morgens", "morning"), ("Mittags", "noon"), ("Abends", "evening"), ("Nachts", "night")] %}
     <label class="block">
       {{ label }}:
-      <input type="number" name="{{ name }}" min="0" class="w-full border rounded px-2 py-1" />
+      <input type="number" name="{{ prefix }}{{ name }}" min="0" class="w-full border rounded px-2 py-1" />
     </label>
     {% endfor %}
   </div>
+  {% endmacro %}
+
+  {% macro timeofday_fields(index="1") %}
+  <div class="grid grid-cols-2 gap-2">
+    <input type="time" name="time_{{ index }}" class="w-full border rounded px-2 py-1" required />
+    <input type="number" name="dose_{{ index }}" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
+  </div>
+  {% endmacro %}
+
+  {% if schema == "mman" %}
+    {{ mman_fields() }}
 
   {% elif schema == "timeofday" %}
   <div id="timeofday-inputs" class="space-y-2">
-    <div class="grid grid-cols-2 gap-2">
-      <input type="time" name="time_1" class="w-full border rounded px-2 py-1" required />
-      <input type="number" name="dose_1" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
-    </div>
+    {{ timeofday_fields("1") }}
   </div>
   <button type="button" onclick="addTimeOfDayField()" class="text-blue-600 hover:underline text-sm">+ Weitere Uhrzeit hinzufügen</button>
-
   <script>
     let timeOfDayCount = 1;
     function addTimeOfDayField() {
@@ -70,61 +77,95 @@
   </label>
 
   {% elif schema in ["combined_interval_time", "weekday_combined"] %}
-  {% for i in range(1, 4) %}
-  <fieldset class="border p-3 rounded">
-    <legend class="font-semibold text-sm mb-2">Zeitpunkt {{ i }}</legend>
-    {% if schema == "weekday_combined" %}
-    <label class="block mb-2">
-      Wochentage:
-      <select name="days{{ i }}" multiple class="w-full border rounded px-2 py-1">
-        {% for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] %}
-        <option value="{{ d }}">{{ d|title }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    {% endif %}
-    <label class="block mb-2">
-      Tageszeit:
-      <select name="when{{ i }}" class="w-full border rounded px-2 py-1">
-        <option value="">–</option>
-        <option value="MORN">Morgens</option>
-        <option value="NOON">Mittags</option>
-        <option value="EVE">Abends</option>
-        <option value="NIGHT">Nachts</option>
-      </select>
-    </label>
-    <label class="block mb-2">
-      Alternativ: Uhrzeit:
-      <input type="time" name="time{{ i }}" class="w-full border rounded px-2 py-1" />
-    </label>
-    <label class="block">
-      Dosis:
-      <input type="number" step="any" name="dose{{ i }}" class="w-full border rounded px-2 py-1" />
-    </label>
-  </fieldset>
-  {% endfor %}
+  <div id="combo-fields">
+    <!-- Initial block -->
+  </div>
+  <button type="button" onclick="addComboField()" class="text-blue-600 hover:underline text-sm">+ Zeitpunkt hinzufügen</button>
 
-{% else %}
-<form hx-post="/generate/freetext" hx-target="#result" class="space-y-4">
-  <input type="hidden" name="schema" value="freetext" />
+  {% if schema == "combined_interval_time" %}
+  <label class="block mt-4">
+    Häufigkeit (frequency):
+    <input type="number" name="frequency" min="1" class="w-full border rounded px-2 py-1" />
+  </label>
+  <label class="block">
+    Intervall (period):
+    <input type="number" name="period" min="1" class="w-full border rounded px-2 py-1" />
+  </label>
+  <label class="block">
+    Zeiteinheit:
+    <select name="period_unit" class="w-full border rounded px-2 py-1">
+      <option value="d">Tage</option>
+      <option value="wk">Wochen</option>
+      <option value="mo">Monate</option>
+    </select>
+  </label>
+  {% endif %}
 
+  <script>
+    let comboIndex = 0;
+    function addComboField() {
+      comboIndex++;
+      const container = document.getElementById("combo-fields");
+      const wrapper = document.createElement("fieldset");
+      wrapper.className = "border p-3 rounded mb-4";
+      wrapper.innerHTML = `
+        <legend class="font-semibold text-sm mb-2">Zeitpunkt ${comboIndex}</legend>
+        {% if schema == "weekday_combined" %}
+        <label class="block mb-2">
+          Wochentage:
+          <select name="days_${comboIndex}" multiple class="w-full border rounded px-2 py-1">
+            {% for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] %}
+            <option value="{{ d }}">{{ d|title }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        <label class="block mb-2">
+          Eingabemodus:
+          <select name="mode_${comboIndex}" class="w-full border rounded px-2 py-1" onchange="toggleTimeMode(this, ${comboIndex})">
+            <option value="mman">Tageszeit (MMAN)</option>
+            <option value="timeofday">Uhrzeit</option>
+          </select>
+        </label>
+        <div id="time-fields-${comboIndex}">
+          {{ mman_fields("${comboIndex}_") }}
+        </div>
+        <label class="block">
+          Dosis:
+          <input type="number" step="any" name="dose_${comboIndex}" class="w-full border rounded px-2 py-1" />
+        </label>
+      `;
+      container.appendChild(wrapper);
+    }
+    function toggleTimeMode(select, index) {
+      const target = document.getElementById(`time-fields-${index}`);
+      if (select.value === 'timeofday') {
+        target.innerHTML = `
+          <div class='grid grid-cols-2 gap-2'>
+            <input type='time' name='time_${index}' class='w-full border rounded px-2 py-1' required />
+            <input type='number' name='dose_${index}' step='any' min='0' class='w-full border rounded px-2 py-1' required placeholder='Dosis' />
+          </div>
+        `;
+      } else {
+        target.innerHTML = `
+          <div class='grid grid-cols-2 md:grid-cols-4 gap-4'>
+            <label class='block'>Morgens:<input type='number' name='${index}_morning' min='0' class='w-full border rounded px-2 py-1' /></label>
+            <label class='block'>Mittags:<input type='number' name='${index}_noon' min='0' class='w-full border rounded px-2 py-1' /></label>
+            <label class='block'>Abends:<input type='number' name='${index}_evening' min='0' class='w-full border rounded px-2 py-1' /></label>
+            <label class='block'>Nachts:<input type='number' name='${index}_night' min='0' class='w-full border rounded px-2 py-1' /></label>
+          </div>
+        `;
+      }
+    }
+  </script>
+
+  {% else %}
   <label class="block">
     Freitext-Dosierung:
     <input type="text" name="freetext" class="w-full border rounded px-2 py-1" />
   </label>
   {% endif %}
 
-  <!-- Globale Felder
-  <label class="block">
-    Arzneimittel:
-    <input type="text" name="medication" value="Arzneimittel" class="w-full border rounded px-2 py-1" required />
-  </label>
-
-  <label class="block">
-    Einheit:
-    <input type="text" name="unit" value="Stück" class="w-full border rounded px-2 py-1" required />
-  </label>
-   -->
   {% if schema != "freetext" %}
   <label class="block">
     <input type="checkbox" id="limit_duration" onclick="toggleDuration()" class="mr-2" />
@@ -147,7 +188,8 @@
       fields.classList.toggle("hidden", !box.checked);
     }
   </script>
- {% endif %}
+  {% endif %}
+
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
     Dosierung generieren
   </button>
