@@ -2,70 +2,43 @@
 <form hx-post="/generate/mman" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="mman" />
 
-  <div class="grid grid-cols-4 gap-4">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     <label class="block">
       Morgens:
-      <input
-        type="number"
-        name="morning"
-        min="0"
-        class="mt-1 w-full rounded border"
-      />
+      <input type="number" name="morning" min="0" class="w-full border rounded px-2 py-1" />
     </label>
     <label class="block">
       Mittags:
-      <input
-        type="number"
-        name="noon"
-        min="0"
-        class="mt-1 w-full rounded border"
-      />
+      <input type="number" name="noon" min="0" class="w-full border rounded px-2 py-1" />
     </label>
     <label class="block">
       Abends:
-      <input
-        type="number"
-        name="evening"
-        min="0"
-        class="mt-1 w-full rounded border"
-      />
+      <input type="number" name="evening" min="0" class="w-full border rounded px-2 py-1" />
     </label>
     <label class="block">
       Nachts:
-      <input
-        type="number"
-        name="night"
-        min="0"
-        class="mt-1 w-full rounded border"
-      />
+      <input type="number" name="night" min="0" class="w-full border rounded px-2 py-1" />
     </label>
   </div>
 
   <label class="block">
     Dauer (Tage):
-    <input
-      type="number"
-      name="duration_days"
-      min="1"
-      class="mt-1 w-full rounded border"
-    />
+    <input type="number" name="duration_days" min="1" class="w-full border rounded px-2 py-1" />
   </label>
 
-  <button
-    type="submit"
-    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-  >
+  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
     Dosierung generieren
   </button>
 </form>
+
 {% elif schema == "timeofday" %}
 <form hx-post="/generate/timeofday" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="timeofday" />
+
   <div id="timeofday-inputs" class="space-y-2">
-    <!-- Initiales Feld -->
-    <div class="flex gap-2">
-      <input type="time" name="time_1" class="border rounded p-1" required />
-      <input type="number" name="dose_1" step="any" min="0" class="border rounded p-1 w-24" required placeholder="Dosis" />
+    <div class="grid grid-cols-2 gap-2">
+      <input type="time" name="time_1" class="w-full border rounded px-2 py-1" required />
+      <input type="number" name="dose_1" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
     </div>
   </div>
 
@@ -73,7 +46,7 @@
 
   <label class="block">
     Dauer (Tage):
-    <input type="number" name="duration_days" min="1" class="mt-1 w-full rounded border" />
+    <input type="number" name="duration_days" min="1" class="w-full border rounded px-2 py-1" />
   </label>
 
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
@@ -87,40 +60,40 @@ function addTimeOfDayField() {
   timeOfDayCount++;
   const container = document.getElementById("timeofday-inputs");
   const div = document.createElement("div");
-  div.className = "flex gap-2";
+  div.className = "grid grid-cols-2 gap-2";
   div.innerHTML = `
-    <input type="time" name="time_${timeOfDayCount}" class="border rounded p-1" required />
-    <input type="number" name="dose_${timeOfDayCount}" step="any" min="0" class="border rounded p-1 w-24" required placeholder="Dosis" />
+    <input type="time" name="time_${timeOfDayCount}" class="w-full border rounded px-2 py-1" required />
+    <input type="number" name="dose_${timeOfDayCount}" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
   `;
   container.appendChild(div);
 }
 </script>
+
 {% elif schema == "weekday" %}
-<form hx-post="/generate/interval_combined" hx-target="#result" class="space-y-4">
+<form hx-post="/generate/weekday" hx-target="#result" class="space-y-4">
   <input type="hidden" name="schema" value="weekday" />
-  
+
   <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
     {% for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] %}
     <label class="flex items-center gap-2">
-      <input type="checkbox" name="day_{{ day }}" value="1" />
+      <input type="checkbox" name="day_{{ day }}" value="1" class="rounded border" />
       {{ day|title }}:
-      <input type="number" name="dose_{{ day }}" min="0" step="any" class="w-20 border rounded px-1 py-0.5" placeholder="Dosis" />
+      <input type="number" name="dose_{{ day }}" min="0" step="any" class="w-20 border rounded px-2 py-1" placeholder="Dosis" />
     </label>
     {% endfor %}
   </div>
 
-
-    <label class="block">
+  <label class="block">
     Dauer der Anwendung:
     <div class="flex gap-2 mt-1">
-        <input type="number" name="duration_value" min="1" class="w-24 rounded border px-2 py-1" placeholder="z. B. 10" />
-        <select name="duration_unit" class="rounded border px-2 py-1">
+      <input type="number" name="duration_value" min="1" class="w-24 border rounded px-2 py-1" placeholder="z. B. 10" />
+      <select name="duration_unit" class="border rounded px-2 py-1">
         <option value="d">Tag(e)</option>
         <option value="wk" selected>Woche(n)</option>
         <option value="mo">Monat(e)</option>
-        </select>
+      </select>
     </div>
-    </label>
+  </label>
 
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
     Dosierung generieren
