@@ -1,6 +1,18 @@
 from typing import List, Tuple, Optional
 from collections import defaultdict
 
+def bounds_duration(value: Optional[int], unit: Optional[str]) -> dict:
+    if value and unit:
+        return {
+            "boundsDuration": {
+                "value": value,
+                "unit": {"d": "Tag(e)", "wk": "Woche(n)", "mo": "Monat(e)"}.get(unit, unit),
+                "system": "http://unitsofmeasure.org",
+                "code": unit
+            }
+        }
+    return {}
+
 def build_freetext(text: str) -> dict:
     return {
         "resourceType": "MedicationRequest",
@@ -13,266 +25,133 @@ def build_freetext(text: str) -> dict:
         "intent": "order",
         "medicationCodeableConcept": {"text": "Ibuprofen 400mg"},
         "subject": {"display": "Patient"},
-        "dosageInstruction": [
-            {
+        "dosageInstruction": [{
+            "extension": [{
+                "url": "http://ig.fhir.de/igs/medication/StructureDefinition/GeneratedDosageInstructions",
                 "extension": [
-                    {
-                        "url": "http://ig.fhir.de/igs/medication/StructureDefinition/GeneratedDosageInstructions",
-                        "extension": [
-                            {"url": "text", "valueString": text},
-                            {
-                                "url": "algorithm",
-                                "valueCoding": {
-                                    "system": "http://ig.fhir.de/igs/medication/CodeSystem/DosageTextAlgorithms",
-                                    "version": "1.0.0",
-                                    "code": "GermanDosageTextGenerator",
-                                },
-                            },
-                        ],
-                    }
+                    {"url": "text", "valueString": text},
+                    {"url": "algorithm", "valueCoding": {
+                        "system": "http://ig.fhir.de/igs/medication/CodeSystem/DosageTextAlgorithms",
+                        "version": "1.0.0",
+                        "code": "GermanDosageTextGenerator"
+                    }},
                 ],
-                "text": text,
-            }
-        ],
+            }],
+            "text": text,
+        }],
     }
 
-def build_timeofday(
-    times: List[str],  # Uhrzeiten als "HH:MM" oder "HH:MM:SS"
-    doses: List[float],  # Dosis je Uhrzeit, gleiche Länge wie times
-    duration_days: Optional[int] = None,
-    medication: str = "Arzneimittel",
-    unit: str = "Stück",
-) -> dict:
+def build_timeofday(times: List[str], doses: List[float], duration_value: Optional[int], medication: str, unit: str, duration_unit: Optional[str]) -> dict:
     if len(times) != len(doses):
-        raise ValueError("Die Anzahl der Uhrzeiten und Dosen muss übereinstimmen.")
+        raise ValueError("Uhrzeiten und Dosen müssen gleich lang sein.")
 
-    resource = {
-        "resourceType": "MedicationRequest",
-        "meta": {
-            "profile": [
-                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
-            ]
-        },
-        "status": "active",
-        "intent": "order",
-        "medicationCodeableConcept": {"text": medication},
-        "subject": {"display": "Patient"},
-        "dosageInstruction": [],
-    }
-
-    # Gruppiere Dosierungen mit identischer Dosis in einer gemeinsamen Dosage-Instanz
-    grouped: dict[float, List[str]] = {}
+    grouped: dict[float, List[str]] = defaultdict(list)
     for time, dose in zip(times, doses):
-        time = (
-            time if len(time) == 8 else time + ":00"
-        )  # normalize "HH:MM" → "HH:MM:00"
-        grouped.setdefault(dose, []).append(time)
+        time = time if len(time) == 8 else time + ":00"
+        grouped[dose].append(time)
+
+    resource = _base_resource(medication)
+    bounds = bounds_duration(duration_value, duration_unit)
 
     for dose, times in grouped.items():
         dosage = {
-            "timing": {"repeat": {"timeOfDay": times}},
-            "doseAndRate": [
-                {
-                    "doseQuantity": {
-                        "value": dose,
-                        "unit": unit,
-                        "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                        "code": "1",
-                    }
-                }
-            ],
+            "timing": {"repeat": {"timeOfDay": times, **bounds}},
+            "doseAndRate": [_dose_quantity(dose, unit)]
         }
-        if duration_days:
-            dosage["timing"]["repeat"]["boundsDuration"] = {
-                "value": duration_days,
-                "unit": "d",
-                "system": "http://unitsofmeasure.org",
-                "code": "d",
-            }
-
         resource["dosageInstruction"].append(dosage)
 
     return resource
 
+def build_mman(morning: float, noon: float, evening: float, night: float, duration_value: Optional[int], medication: str, unit: str, duration_unit: Optional[str]) -> dict:
+    time_slots = {"MORN": morning, "NOON": noon, "EVE": evening, "NIGHT": night}
+    active = {k: v for k, v in time_slots.items() if v > 0}
+    resource = _base_resource(medication)
+    bounds = bounds_duration(duration_value, duration_unit)
 
-def build_mman(
-    morning: float = 0,
-    noon: float = 0,
-    evening: float = 0,
-    night: float = 0,
-    duration_days: int = None,
-    medication: str = "Arzneimittel",
-    unit: str = "Stück",
-) -> dict:
-    """
-    Erzeugt ein FHIR-konformes MedicationRequest-Objekt für das MMAN-Schema.
-    """
+    doses = list(active.values())
+    same = all(d == doses[0] for d in doses)
 
-    time_slots = {
-        "MORN": morning,
-        "NOON": noon,
-        "EVE": evening,
-        "NIGHT": night,
-    }
-
-    # Sammle nur belegte Zeiten
-    active_slots = {k: v for k, v in time_slots.items() if v > 0}
-
-    # Basis-Ressource
-    resource = {
-        "resourceType": "MedicationRequest",
-        "meta": {
-            "profile": [
-                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
-            ]
-        },
-        "status": "active",
-        "intent": "order",
-        "medicationCodeableConcept": {"text": medication},
-        "subject": {"display": "Patient"},
-        "dosageInstruction": [],
-    }
-
-    # Bilde duration falls gesetzt
-    bounds = (
-        {
-            "boundsDuration": {
-                "value": duration_days,
-                "unit": "d",
-                "system": "http://unitsofmeasure.org",
-                "code": "d",
-            }
-        }
-        if duration_days
-        else {}
-    )
-
-    doses = list(active_slots.values())
-    same_dose = all(d == doses[0] for d in doses)
-
-    if same_dose:
-        # eine Dosage-Instanz mit mehreren Zeitpunkten
+    if same:
         dosage = {
-            "timing": {"repeat": {"when": list(active_slots.keys()), **bounds}},
-            "doseAndRate": [
-                {
-                    "doseQuantity": {
-                        "value": doses[0],
-                        "unit": unit,
-                        "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                        "code": "1",
-                    }
-                }
-            ],
+            "timing": {"repeat": {"when": list(active.keys()), **bounds}},
+            "doseAndRate": [_dose_quantity(doses[0], unit)]
         }
         resource["dosageInstruction"].append(dosage)
-
     else:
-        # eigene Instanz je Tageszeit
-        for when, value in active_slots.items():
+        for when, dose in active.items():
             dosage = {
                 "timing": {"repeat": {"when": [when], **bounds}},
-                "doseAndRate": [
-                    {
-                        "doseQuantity": {
-                            "value": value,
-                            "unit": unit,
-                            "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                            "code": "1",
-                        }
-                    }
-                ],
+                "doseAndRate": [_dose_quantity(dose, unit)]
             }
             resource["dosageInstruction"].append(dosage)
 
     return resource
 
-def build_weekday(
-    days_and_doses: List[Tuple[str, float]],
-    duration_value: Optional[int] = None,
-    duration_unit: str = "wk",  # angepasst!
-    medication: str = "Arzneimittel",
-    unit: str = "Stück"
-) -> dict:
-    """
-    Erzeugt ein FHIR-konformes MedicationRequest für das Wochentagsschema (dayOfWeek).
-    """
-
-    resource = {
-        "resourceType": "MedicationRequest",
-        "meta": {
-            "profile": [
-                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
-            ]
-        },
-        "status": "active",
-        "intent": "order",
-        "medicationCodeableConcept": {"text": medication},
-        "subject": {"display": "Patient"},
-        "dosageInstruction": [],
-    }
-
-    bounds = (
-        {
-            "boundsDuration": {
-                "value": duration_value,
-                "unit": {
-                    "d": "Tag(e)",
-                    "wk": "Woche(n)",
-                    "mo": "Monat(e)"
-                }.get(duration_unit, duration_unit),
-                "system": "http://unitsofmeasure.org",
-                "code": duration_unit
-            }
-        }
-        if duration_value
-        else {}
-    )
-
-    # Gruppiere Wochentage nach identischer Dosis
+def build_weekday(days_and_doses: List[Tuple[str, float]], duration_value: Optional[int], duration_unit: Optional[str], medication: str, unit: str) -> dict:
+    resource = _base_resource(medication)
+    bounds = bounds_duration(duration_value, duration_unit)
     grouped: dict[float, List[str]] = defaultdict(list)
     for day, dose in days_and_doses:
-        grouped[dose].append(day.lower())  # FHIR erwartet "mon", "tue", ...
+        grouped[dose].append(day.lower())
 
     for dose, days in grouped.items():
         dosage = {
-            "timing": {
-                "repeat": {
-                    "dayOfWeek": days,
-                    "frequency": len(days),
-                    "period": 1,
-                    "periodUnit": "wk",
-                    **bounds
-                }
-            },
-            "doseAndRate": [
-                {
-                    "doseQuantity": {
-                        "value": dose,
-                        "unit": unit,
-                        "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                        "code": "1"
-                    }
-                }
-            ]
+            "timing": {"repeat": {"dayOfWeek": days, "frequency": len(days), "period": 1, "periodUnit": "wk", **bounds}},
+            "doseAndRate": [_dose_quantity(dose, unit)]
         }
         resource["dosageInstruction"].append(dosage)
 
     return resource
 
-def build_interval_with_times(
-    schedule: list[tuple[str, float]],  # z. B. [("08:00:00", 1.0), ("18:00:00", 2.0)] oder [("MORN", 1.0)]
-    period: int = 1,
-    period_unit: str = "d",  # "d" = Tag, "wk" = Woche
-    duration_days: int = None,
-    medication: str = "Arzneimittel",
-    unit: str = "Stück"
-) -> dict:
-    """
-    Erzeugt ein FHIR-konformes MedicationRequest-Objekt für das kombinierte Intervallschema mit Uhrzeit- oder Tageszeitbezug.
-    """
+def build_interval(frequency: int, period: int, period_unit: str, duration_value: Optional[int], duration_unit: Optional[str], medication: str, dose: float, unit: str) -> dict:
+    resource = _base_resource(medication)
+    bounds = bounds_duration(duration_value, duration_unit)
+    dosage = {
+        "timing": {"repeat": {"frequency": frequency, "period": period, "periodUnit": period_unit, **bounds}},
+        "doseAndRate": [_dose_quantity(dose, unit)]
+    }
+    resource["dosageInstruction"].append(dosage)
+    return resource
 
-    resource = {
+def build_interval_with_times(schedule: List[Tuple[str, float]], period: int, period_unit: str, duration_value: Optional[int], medication: str, unit: str, duration_unit: Optional[str]) -> dict:
+    resource = _base_resource(medication)
+    bounds = bounds_duration(duration_value, duration_unit)
+
+    for time, dose in schedule:
+        timing_field = "timeOfDay" if ":" in time else "when"
+        dosage = {
+            "timing": {"repeat": {"frequency": 1, "period": period, "periodUnit": period_unit, timing_field: [time], **bounds}},
+            "doseAndRate": [_dose_quantity(dose, unit)]
+        }
+        resource["dosageInstruction"].append(dosage)
+
+    return resource
+
+def build_weekday_based(entries: List[dict], duration_value: Optional[int], medication: str, unit: str, duration_unit: Optional[str]) -> dict:
+    resource = _base_resource(medication)
+    bounds = bounds_duration(duration_value, duration_unit)
+
+    for entry in entries:
+        days = entry.get("days", [])
+        time = entry.get("time")
+        when = entry.get("when")
+        dose = entry.get("dose", 1.0)
+        repeat = {"dayOfWeek": days, "frequency": len(days), "period": 1, "periodUnit": "wk", **bounds}
+        if time:
+            repeat["timeOfDay"] = [time]
+        elif when:
+            repeat["when"] = [when]
+
+        dosage = {
+            "timing": {"repeat": repeat},
+            "doseAndRate": [_dose_quantity(dose, unit)]
+        }
+        resource["dosageInstruction"].append(dosage)
+
+    return resource
+
+def _base_resource(medication: str) -> dict:
+    return {
         "resourceType": "MedicationRequest",
         "meta": {
             "profile": [
@@ -286,186 +165,12 @@ def build_interval_with_times(
         "dosageInstruction": []
     }
 
-    bounds = (
-        {
-            "boundsDuration": {
-                "value": duration_days,
-                "unit": "d",
-                "system": "http://unitsofmeasure.org",
-                "code": "d"
-            }
-        }
-        if duration_days
-        else {}
-    )
-
-    for time_value, dose in schedule:
-        # Bestimme, ob timeOfDay oder when verwendet werden soll
-        if ":" in time_value:
-            timing_field = "timeOfDay"
-        else:
-            timing_field = "when"
-
-        dosage = {
-            "timing": {
-                "repeat": {
-                    "frequency": 1,
-                    "period": period,
-                    "periodUnit": period_unit,
-                    timing_field: [time_value],
-                    **bounds
-                }
-            },
-            "doseAndRate": [
-                {
-                    "doseQuantity": {
-                        "value": dose,
-                        "unit": unit,
-                        "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                        "code": "1"
-                    }
-                }
-            ]
-        }
-
-        resource["dosageInstruction"].append(dosage)
-
-    return resource
-
-def build_interval(
-    frequency: int,
-    period: int,
-    period_unit: str,  # "d", "wk", "mo"
-    duration_value: Optional[int] = None,
-    duration_unit: Optional[str] = None,
-    medication: str = "Arzneimittel",
-    dose: float = 1.0,
-    unit: str = "Stück"
-) -> dict:
-    """
-    Erzeugt ein FHIR-konformes MedicationRequest für wiederkehrende Intervalle.
-    """
-
-    # Optionale Dauer (z. B. 6 Wochen) korrekt in boundsDuration umsetzen
-    bounds = {}
-    if duration_value and duration_unit:
-        bounds = {
-            "boundsDuration": {
-                "value": duration_value,
-                "unit": {
-                    "d": "Tag(e)",
-                    "wk": "Woche(n)",
-                    "mo": "Monat(e)"
-                }.get(duration_unit, duration_unit),
-                "system": "http://unitsofmeasure.org",
-                "code": duration_unit
-            }
-        }
-
-    resource = {
-        "resourceType": "MedicationRequest",
-        "meta": {
-            "profile": [
-                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
-            ]
-        },
-        "status": "active",
-        "intent": "order",
-        "medicationCodeableConcept": {"text": medication},
-        "subject": {"display": "Patient"},
-        "dosageInstruction": [
-            {
-                "timing": {
-                    "repeat": {
-                        "frequency": frequency,
-                        "period": period,
-                        "periodUnit": period_unit,
-                        **bounds
-                    }
-                },
-                "doseAndRate": [
-                    {
-                        "doseQuantity": {
-                            "value": dose,
-                            "unit": unit,
-                            "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                            "code": "1"
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-
-    return resource
-
-def build_weekday_based(
-    entries: list[dict],
-    duration_weeks: int = None,
-    medication: str = "Arzneimittel",
-    unit: str = "Stück"
-) -> dict:
-    """
-    Erzeugt ein FHIR-konformes MedicationRequest für ein wochentagsbasiertes Schema.
-
-    :param entries: Liste von Dosen, z. B.
-        [
-            {"days": ["mon", "fri"], "when": "MORN", "dose": 1},
-            {"days": ["mon", "fri"], "time": "08:00:00", "dose": 2},
-        ]
-    """
-    dosage_instruction = []
-    for entry in entries:
-        days = entry.get("days", [])
-        time = entry.get("time")  # Uhrzeit
-        when = entry.get("when")  # Tageszeit
-        dose = entry.get("dose", 1.0)
-
-        # frequency = len(days) * len([when|time])
-        frequency = len(days)
-
-        repeat = {
-            "frequency": frequency,
-            "period": 1,
-            "periodUnit": "wk",
-            "dayOfWeek": days,
-        }
-
-        if time:
-            repeat["timeOfDay"] = [time]
-        elif when:
-            repeat["when"] = [when]
-
-        if duration_weeks:
-            repeat["boundsDuration"] = {
-                "value": duration_weeks,
-                "unit": "wk",
-                "system": "http://unitsofmeasure.org",
-                "code": "wk"
-            }
-
-        dosage_instruction.append({
-            "timing": {"repeat": repeat},
-            "doseAndRate": [{
-                "doseQuantity": {
-                    "value": dose,
-                    "unit": unit,
-                    "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
-                    "code": "1"
-                }
-            }]
-        })
-
+def _dose_quantity(value: float, unit: str) -> dict:
     return {
-        "resourceType": "MedicationRequest",
-        "meta": {
-            "profile": [
-                "http://ig.fhir.de/igs/medication/StructureDefinition/MedicationRequestDgMP"
-            ]
-        },
-        "status": "active",
-        "intent": "order",
-        "medicationCodeableConcept": {"text": medication},
-        "subject": {"display": "Patient"},
-        "dosageInstruction": dosage_instruction
+        "doseQuantity": {
+            "value": value,
+            "unit": unit,
+            "system": "https://fhir.kbv.de/CodeSystem/KBV_CS_SFHIR_BMP_DOSIEREINHEIT",
+            "code": "1"
+        }
     }

@@ -1,3 +1,4 @@
+# Refactored FastAPI backend for unified structured dosage input
 from typing import Optional
 from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse
@@ -10,7 +11,6 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-
 @app.get("/", response_class=HTMLResponse)
 async def get_index(request: Request, schema: str = Query(default="freetext")):
     return templates.TemplateResponse("index.html", {"request": request, "schema": schema})
@@ -19,37 +19,103 @@ async def get_index(request: Request, schema: str = Query(default="freetext")):
 async def get_form(request: Request, schema: str = Query(default="freetext")):
     return templates.TemplateResponse("form_fragment.html", {"request": request, "schema": schema})
 
-
 @app.post("/generate/freetext", response_class=HTMLResponse)
 async def generate_freetext(request: Request, freetext: str = Form(...)):
     fhir = build_freetext(freetext)
     text = generate_dosage_texts(fhir)
-    return templates.TemplateResponse(
-        "result_fragment.html", {"request": request, "fhir": fhir, "text": freetext}
-    )
+    return templates.TemplateResponse("result_fragment.html", {"request": request, "fhir": fhir, "text": freetext})
 
 @app.post("/generate/mman", response_class=HTMLResponse)
-async def generate_mman(
-    request: Request,
-    morning: int = Form(0),
-    noon: int = Form(0),
-    evening: int = Form(0),
-    night: int = Form(0),
-    duration_days: int = Form(None),
-    medication: str = Form("Arzneimittel"),
-    dose: float = Form(1),  # wird nicht verwendet, bleibt für Kompatibilität
-    unit: str = Form("Stück"),
-):
-    fhir = build_mman(morning, noon, evening, night, duration_days, medication, unit)
+async def generate_mman(request: Request):
+    form = await request.form()
+    morning = int(form.get("morning") or 0)
+    noon = int(form.get("noon") or 0)
+    evening = int(form.get("evening") or 0)
+    night = int(form.get("night") or 0)
+    duration_value, duration_unit = extract_duration(form)
+    medication = form.get("medication") or "Arzneimittel"
+    unit = form.get("unit") or "Stück"
+    fhir = build_mman(morning, noon, evening, night, duration_value, medication, unit, duration_unit)
     text = generate_dosage_texts(fhir)
-    return templates.TemplateResponse(
-        "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
-    )
+    return templates.TemplateResponse("result_fragment.html", {"request": request, "fhir": fhir, "text": text})
 
 @app.post("/generate/timeofday", response_class=HTMLResponse)
 async def generate_timeofday(request: Request):
     form = await request.form()
+    times, doses = extract_times_and_doses(form)
+    duration_value, duration_unit = extract_duration(form)
+    medication = form.get("medication") or "Arzneimittel"
+    unit = form.get("unit") or "Stück"
+    fhir = build_timeofday(times, doses, duration_value, medication, unit, duration_unit)
+    text = generate_dosage_texts(fhir)
+    return templates.TemplateResponse("result_fragment.html", {"request": request, "fhir": fhir, "text": text})
 
+@app.post("/generate/weekday", response_class=HTMLResponse)
+async def generate_weekday(request: Request):
+    form = await request.form()
+    days_and_doses = [(d, float(form.get(f"dose_{d}"))) for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] if form.get(f"day_{d}") == "1" and form.get(f"dose_{d}")]
+    duration_value, duration_unit = extract_duration(form)
+    medication = form.get("medication") or "Arzneimittel"
+    unit = form.get("unit") or "Stück"
+    fhir = build_weekday(days_and_doses, duration_value, duration_unit, medication, unit)
+    text = generate_dosage_texts(fhir)
+    return templates.TemplateResponse("result_fragment.html", {"request": request, "fhir": fhir, "text": text})
+
+@app.post("/generate/interval", response_class=HTMLResponse)
+async def generate_interval(request: Request):
+    form = await request.form()
+    frequency = int(form.get("frequency"))
+    period = int(form.get("period"))
+    period_unit = form.get("period_unit")
+    duration_value, duration_unit = extract_duration(form)
+    medication = form.get("medication") or "Arzneimittel"
+    dose = float(form.get("dose") or 1)
+    unit = form.get("unit") or "Stück"
+    fhir = build_interval(frequency, period, period_unit, duration_value, duration_unit, medication, dose, unit)
+    text = generate_dosage_texts(fhir)
+    return templates.TemplateResponse("result_fragment.html", {"request": request, "fhir": fhir, "text": text})
+
+@app.post("/generate/combined_interval_time", response_class=HTMLResponse)
+async def generate_combined_interval_time(request: Request):
+    form = await request.form()
+    period = int(form.get("period"))
+    period_unit = form.get("period_unit")
+    duration_value, duration_unit = extract_duration(form)
+    medication = form.get("medication") or "Arzneimittel"
+    unit = form.get("unit") or "Stück"
+    schedule = extract_schedule(form)
+    fhir = build_interval_with_times(schedule, period, period_unit, duration_value, medication, unit, duration_unit)
+    text = generate_dosage_texts(fhir)
+    return templates.TemplateResponse("result_fragment.html", {"request": request, "fhir": fhir, "text": text})
+
+@app.post("/generate/weekday_combined", response_class=HTMLResponse)
+async def generate_weekday_combined(request: Request):
+    form = await request.form()
+    medication = form.get("medication") or "Arzneimittel"
+    unit = form.get("unit") or "Stück"
+    duration_value, duration_unit = extract_duration(form)
+    entries = []
+    i = 1
+    while True:
+        days = form.getlist(f"days{i}")
+        time = form.get(f"time{i}", "").strip()
+        when = form.get(f"when{i}", "").strip()
+        dose = form.get(f"dose{i}", "").strip()
+        if not days and not dose:
+            break
+        if days and dose and (when or time):
+            entries.append({"days": days, "time": time or None, "when": when or None, "dose": float(dose)})
+        i += 1
+    fhir = build_weekday_based(entries, duration_value, medication, unit, duration_unit)
+    text = generate_dosage_texts(fhir)
+    return templates.TemplateResponse("result_fragment.html", {"request": request, "fhir": fhir, "text": text})
+
+def extract_duration(form):
+    value = form.get("duration_value")
+    unit = form.get("duration_unit")
+    return (int(value) if value else None, unit if value else None)
+
+def extract_times_and_doses(form):
     times = []
     doses = []
     for key in sorted(form.keys()):
@@ -60,102 +126,9 @@ async def generate_timeofday(request: Request):
             if time and dose:
                 times.append(time)
                 doses.append(float(dose))
+    return times, doses
 
-    duration_days = int(form.get("duration_days") or 0) or None
-    medication = form.get("medication") or "Arzneimittel"
-    unit = form.get("unit") or "Stück"
-
-    fhir = build_timeofday(times, doses, duration_days, medication, unit)
-    text = generate_dosage_texts(fhir)
-
-    return templates.TemplateResponse(
-        "result_fragment.html",
-        {"request": request, "fhir": fhir, "text": text}
-    )
-
-@app.post("/generate/weekday", response_class=HTMLResponse)
-async def generate_weekday(request: Request):
-    form = await request.form()
-
-    days_and_doses = []
-    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
-        if form.get(f"day_{day}") == "1":
-            try:
-                dose = float(form.get(f"dose_{day}", 0))
-                if dose > 0:
-                    days_and_doses.append((day, dose))
-            except ValueError:
-                continue  # ignorieren, wenn Eingabe fehlerhaft
-
-    medication = form.get("medication") or "Arzneimittel"
-    unit = form.get("unit") or "Stück"
-
-    duration_unit = "wk"  # Fest für dieses Schema
-    duration_value = int(form.get("duration_value") or 0) or None
-    duration_unit = form.get("duration_unit") or "wk"
-    fhir = build_weekday(
-        days_and_doses,
-        duration_value=duration_value,
-        duration_unit=duration_unit,
-        medication=medication,
-        unit=unit
-    )
-    text = generate_dosage_texts(fhir)
-
-    return templates.TemplateResponse(
-        "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
-    )
-
-@app.post("/generate/interval", response_class=HTMLResponse)
-async def generate_interval(request: Request):
-    form = await request.form()
-    frequency = int(form.get("frequency"))
-    period = int(form.get("period"))
-    period_unit = form.get("period_unit")
-
-    duration_value = form.get("duration_value")
-    duration_unit = form.get("duration_unit")
-
-    duration_value = int(duration_value) if duration_value else None
-    duration_unit = duration_unit if duration_value else None
-
-    medication = form.get("medication") or "Arzneimittel"
-    dose = float(form.get("dose") or 1)
-    unit = form.get("unit") or "Stück"
-
-    fhir = build_interval(
-        frequency=frequency,
-        period=period,
-        period_unit=period_unit,
-        duration_value=duration_value,
-        duration_unit=duration_unit,
-        medication=medication,
-        dose=dose,
-        unit=unit,
-    )
-    text = generate_dosage_texts(fhir)
-
-    return templates.TemplateResponse(
-        "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
-    )
-
-@app.post("/generate/combined_interval_time", response_class=HTMLResponse)
-async def generate_interval_timed(request: Request):
-    form = await request.form()
-
-    period = int(form.get("period"))
-    period_unit = form.get("period_unit")
-
-    duration_value = form.get("duration_value")
-    duration_unit = form.get("duration_unit")
-
-    duration_value = int(duration_value) if duration_value else None
-    duration_unit = duration_unit if duration_value else None
-
-    medication = form.get("medication") or "Arzneimittel"
-    unit = form.get("unit") or "Stück"
-
-    # Mehrere Zeitpunkte & Dosierungen
+def extract_schedule(form):
     schedule = []
     i = 1
     while True:
@@ -169,77 +142,9 @@ async def generate_interval_timed(request: Request):
             i += 1
         else:
             break
-
-    fhir = build_interval_with_times(
-        schedule=schedule,
-        period=period,
-        period_unit=period_unit,
-        duration_days=duration_value if duration_unit == "d" else None,  # aktuell nur Tag-basierte Begrenzung
-        medication=medication,
-        unit=unit,
-    )
-
-    text = generate_dosage_texts(fhir)
-
-    return templates.TemplateResponse(
-        "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
-    )
-
-@app.post("/generate/weekday_combined", response_class=HTMLResponse)
-async def generate_weekday_combined(request: Request):
-    form = await request.form()
-
-    medication = form.get("medication") or "Arzneimittel"
-    unit = form.get("unit") or "Stück"
-    duration_weeks = form.get("duration_weeks")
-    duration_weeks = int(duration_weeks) if duration_weeks else None
-
-    entries = []
-    i = 1
-    while True:
-        days_key = f"days{i}"
-        time_key = f"time{i}"
-        when_key = f"when{i}"
-        dose_key = f"dose{i}"
-
-        if days_key not in form:
-            break
-
-        days = form.getlist(days_key)
-        time = form.get(time_key, "").strip()
-        when = form.get(when_key, "").strip()
-        dose = form.get(dose_key, "").strip()
-
-        if not days or (not time and not when) or not dose:
-            i += 1
-            continue
-
-        entries.append({
-            "days": days,
-            "time": time if time else None,
-            "when": when if when else None,
-            "dose": float(dose)
-        })
-        i += 1
-
-    fhir = build_weekday_based(
-        entries=entries,
-        duration_weeks=duration_weeks,
-        medication=medication,
-        unit=unit
-    )
-    text = generate_dosage_texts(fhir)
-
-    return templates.TemplateResponse(
-        "result_fragment.html", {"request": request, "fhir": fhir, "text": text}
-    )
-
-
+    return schedule
 
 def generate_dosage_texts(fhir: dict) -> str:
     generator = GematikDosageTextGenerator()
-    texts = [
-        generator.generate_single_dosage_text(dosage)
-        for dosage in fhir.get("dosageInstruction", [])
-    ]
+    texts = [generator.generate_single_dosage_text(dosage) for dosage in fhir.get("dosageInstruction", [])]
     return "<br>".join(filter(None, texts))
