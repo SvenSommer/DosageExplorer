@@ -9,7 +9,7 @@ def bounds_duration(value: Optional[int], unit: Optional[str]) -> dict:
                 "unit": {
                     "d": "Tag(e)",
                     "wk": "Woche(n)",
-                    "mo": "Monat",
+                    "mo": "Monat(e)",
                     "a": "Jahr(e)"
                 }[unit],
                 "system": "http://unitsofmeasure.org",
