@@ -23,36 +23,84 @@
   {% if schema == "mman" %}
     {{ mman_fields() }}
 
-  {% elif schema == "timeofday" %}
-  <div id="timeofday-inputs" class="space-y-2">
-    {{ timeofday_fields("1") }}
-  </div>
-  <button type="button" onclick="addTimeOfDayField()" class="text-blue-600 hover:underline text-sm">+ Weitere Uhrzeit hinzufügen</button>
-  <script>
-    let timeOfDayCount = 1;
-    function addTimeOfDayField() {
-      timeOfDayCount++;
-      const container = document.getElementById("timeofday-inputs");
-      const div = document.createElement("div");
-      div.className = "grid grid-cols-2 gap-2";
-      div.innerHTML = `
-        <input type="time" name="time_${timeOfDayCount}" class="w-full border rounded px-2 py-1" required />
-        <input type="number" name="dose_${timeOfDayCount}" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
-      `;
-      container.appendChild(div);
-    }
-  </script>
+    {% elif schema == "timeofday" %}
+    <div id="timeofday-inputs" class="space-y-2">
+    <div class="grid grid-cols-2 gap-2">
+        <input type="time" name="time_1" class="w-full border rounded px-2 py-1 time-input" required />
+        <input type="number" name="dose_1" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
+    </div>
+    </div>
 
-  {% elif schema == "weekday" %}
-  <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-    {% for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] %}
+    <p id="duplicate-warning" class="text-red-600 text-sm hidden mt-1">Uhrzeiten dürfen nicht doppelt vergeben werden.</p>
+
+    <button type="button" onclick="addTimeOfDayField()" class="text-blue-600 hover:underline text-sm mt-2">
+    + Weitere Uhrzeit hinzufügen
+    </button>
+
+    <script>
+    let timeOfDayCount = 1;
+
+    function validateDuplicateTimes() {
+        const inputs = document.querySelectorAll('.time-input');
+        const seen = new Set();
+        let duplicate = false;
+
+        inputs.forEach(input => {
+        const val = input.value;
+        if (!val) {
+            input.classList.remove("border-red-500");
+            return;
+        }
+
+        if (seen.has(val)) {
+            input.classList.add("border-red-500");
+            duplicate = true;
+        } else {
+            seen.add(val);
+            input.classList.remove("border-red-500");
+        }
+        });
+
+        document.getElementById("duplicate-warning").classList.toggle("hidden", !duplicate);
+    }
+
+    function attachValidation(input) {
+        input.addEventListener("input", validateDuplicateTimes);
+    }
+
+    function addTimeOfDayField() {
+        timeOfDayCount++;
+        const container = document.getElementById("timeofday-inputs");
+        const div = document.createElement("div");
+        div.className = "grid grid-cols-2 gap-2";
+        div.innerHTML = `
+        <input type="time" name="time_${timeOfDayCount}" class="w-full border rounded px-2 py-1 time-input" required />
+        <input type="number" name="dose_${timeOfDayCount}" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
+        `;
+        container.appendChild(div);
+
+        // neue Zeitinput-Felder validieren
+        const newInput = div.querySelector('.time-input');
+        attachValidation(newInput);
+    }
+
+    // initiales Feld anhängen
+    document.querySelectorAll('.time-input').forEach(attachValidation);
+    </script>
+
+    {% elif schema == "weekday" %}
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+    {% set days = [
+        ("mon", "Mo"), ("tue", "Di"), ("wed", "Mi"),
+        ("thu", "Do"), ("fri", "Fr"), ("sat", "Sa"), ("sun", "So")
+    ] %}
+    {% for code, label in days %}
     <label class="flex items-center gap-2">
-      <input type="checkbox" name="day_{{ day }}" value="1" class="rounded border" />
-      {{ day|title }}:
-      <input type="number" name="dose_{{ day }}" min="0" step="any" class="w-20 border rounded px-2 py-1" placeholder="Dosis" />
+        {{ label }}:
+        <input type="number" name="dose_{{ code }}" min="0" step="any" class="w-20 border rounded px-2 py-1" placeholder="Dosis" />
     </label>
     {% endfor %}
-  </div>
+    </div>
 
   {% elif schema == "interval" %}
   <label class="block">
@@ -91,14 +139,15 @@
     Intervall (period):
     <input type="number" name="period" min="1" class="w-full border rounded px-2 py-1" />
   </label>
-  <label class="block">
+    <label class="block">
     Zeiteinheit:
     <select name="period_unit" class="w-full border rounded px-2 py-1">
-      <option value="d">Tage</option>
-      <option value="wk">Wochen</option>
-      <option value="mo">Monate</option>
+        <option value="d">Tag(e)</option>
+        <option value="wk">Woche(n)</option>
+        <option value="mo">Monat</option>
+        <option value="a">Jahr(e)</option>
     </select>
-  </label>
+    </label>
   {% endif %}
 
   <script>
@@ -166,7 +215,7 @@
   </label>
   {% endif %}
 
-  {% if schema != "freetext" %}
+{% if schema != "freetext" %}
   <label class="block">
     <input type="checkbox" id="limit_duration" onclick="toggleDuration()" class="mr-2" />
     Einnahmedauer zeitlich einschränken
@@ -177,7 +226,8 @@
       <select name="duration_unit" class="border rounded px-2 py-1">
         <option value="d">Tage</option>
         <option value="wk">Wochen</option>
-        <option value="mo">Monate</option>
+        <option value="mo">Monat</option>
+        <option value="a">Jahr(e)</option>
       </select>
     </div>
   </div>
@@ -188,7 +238,7 @@
       fields.classList.toggle("hidden", !box.checked);
     }
   </script>
-  {% endif %}
+{% endif %}
 
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
     Dosierung generieren

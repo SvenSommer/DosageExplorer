@@ -2,11 +2,16 @@ from typing import List, Tuple, Optional
 from collections import defaultdict
 
 def bounds_duration(value: Optional[int], unit: Optional[str]) -> dict:
-    if value and unit:
+    if value and unit and unit in {"d", "wk", "mo", "a"}:
         return {
             "boundsDuration": {
                 "value": value,
-                "unit": {"d": "Tag(e)", "wk": "Woche(n)", "mo": "Monat(e)"}.get(unit, unit),
+                "unit": {
+                    "d": "Tag(e)",
+                    "wk": "Woche(n)",
+                    "mo": "Monat",
+                    "a": "Jahr(e)"
+                }[unit],
                 "system": "http://unitsofmeasure.org",
                 "code": unit
             }
@@ -26,17 +31,6 @@ def build_freetext(text: str) -> dict:
         "medicationCodeableConcept": {"text": "Ibuprofen 400mg"},
         "subject": {"display": "Patient"},
         "dosageInstruction": [{
-            "extension": [{
-                "url": "http://ig.fhir.de/igs/medication/StructureDefinition/GeneratedDosageInstructions",
-                "extension": [
-                    {"url": "text", "valueString": text},
-                    {"url": "algorithm", "valueCoding": {
-                        "system": "http://ig.fhir.de/igs/medication/CodeSystem/DosageTextAlgorithms",
-                        "version": "1.0.0",
-                        "code": "GermanDosageTextGenerator"
-                    }},
-                ],
-            }],
             "text": text,
         }],
     }
@@ -62,28 +56,24 @@ def build_timeofday(times: List[str], doses: List[float], duration_value: Option
 
     return resource
 
+
 def build_mman(morning: float, noon: float, evening: float, night: float, duration_value: Optional[int], medication: str, unit: str, duration_unit: Optional[str]) -> dict:
     time_slots = {"MORN": morning, "NOON": noon, "EVE": evening, "NIGHT": night}
     active = {k: v for k, v in time_slots.items() if v > 0}
     resource = _base_resource(medication)
     bounds = bounds_duration(duration_value, duration_unit)
 
-    doses = list(active.values())
-    same = all(d == doses[0] for d in doses)
+    # Gruppiere Tageszeiten nach Dosis
+    dose_groups = defaultdict(list)
+    for when, dose in active.items():
+        dose_groups[dose].append(when)
 
-    if same:
+    for dose, whens in dose_groups.items():
         dosage = {
-            "timing": {"repeat": {"when": list(active.keys()), **bounds}},
-            "doseAndRate": [_dose_quantity(doses[0], unit)]
+            "timing": {"repeat": {"when": whens, **bounds}},
+            "doseAndRate": [_dose_quantity(dose, unit)]
         }
         resource["dosageInstruction"].append(dosage)
-    else:
-        for when, dose in active.items():
-            dosage = {
-                "timing": {"repeat": {"when": [when], **bounds}},
-                "doseAndRate": [_dose_quantity(dose, unit)]
-            }
-            resource["dosageInstruction"].append(dosage)
 
     return resource
 

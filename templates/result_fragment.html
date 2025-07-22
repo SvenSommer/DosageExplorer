@@ -6,6 +6,6 @@
 
   {% if fhir %}
   <h2 class="text-xl font-semibold mb-2">FHIR-Objekt</h2>
-  <pre class="bg-gray-200 p-4 rounded text-sm">{{ fhir | tojson(indent=2) }}</pre>
+<pre class="bg-gray-200 p-4 rounded text-sm">{{ fhir | escape }}</pre>
   {% endif %}
 </div>
