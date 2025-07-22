@@ -87,6 +87,9 @@ async def generate_timeofday(
     if len(time) != len(set(time)):
         return render_error(request, "❌ Doppelte Uhrzeiten sind nicht erlaubt.", schema="timeofday")
 
+    if not (len(time) == len(dose) == len(unit)):
+        return render_error(request, "❌ Uhrzeiten, Dosen und Einheiten müssen jeweils gleich viele Einträge enthalten.", schema="timeofday")
+
     duration = int(duration_value) if duration_value and duration_value.isdigit() else None
     fhir_dict = build_timeofday(time, dose, unit, duration, medication, duration_unit)
     return render_result(request, fhir_dict, schema="timeofday")

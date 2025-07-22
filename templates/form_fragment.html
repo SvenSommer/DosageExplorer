@@ -37,83 +37,85 @@
 
   {% elif schema == "timeofday" %}
   {% set times = request.query_params.getlist('time') %}
-  {% set doses = request.query_params.getlist('dose') %}
-  {% set units_ = request.query_params.getlist('unit') %}
+{% set doses = request.query_params.getlist('dose') %}
+{% set units_ = request.query_params.getlist('unit') %}
 
-  <div id="timeofday-inputs" class="space-y-2">
-    {% for t in times %}
-      <div class="grid grid-cols-3 gap-2">
-        <input type="time" name="time" value="{{ t }}" class="w-full border rounded px-2 py-1 time-input" required />
-        <input type="number" name="dose"
-               value="{{ doses[loop.index0] if loop.index0 < doses|length else '' }}"
-               step="any" min="0"
-               class="w-full border rounded px-2 py-1"
-               required placeholder="Dosis" />
-        {{ unit_select("unit", units_[loop.index0] if loop.index0 < units_|length else '') }}
-      </div>
-    {% endfor %}
+<div id="timeofday-inputs" class="space-y-2">
+  {% for t in times %}
+    <div class="grid grid-cols-3 gap-2">
+      <input type="time" name="time" value="{{ t }}" class="w-full border rounded px-2 py-1 time-input" required />
+      <input type="number" name="dose"
+             value="{{ doses[loop.index0] if loop.index0 < doses|length else '' }}"
+             step="any" min="0" class="w-full border rounded px-2 py-1"
+             required placeholder="Dosis" />
+      {{ unit_select("unit", units_[loop.index0] if loop.index0 < units_|length else '') }}
+    </div>
+  {% endfor %}
 
-    {% if times|length == 0 %}
-      <div class="grid grid-cols-3 gap-2">
-        <input type="time" name="time" class="w-full border rounded px-2 py-1 time-input" required />
-        <input type="number" name="dose" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
-        {{ unit_select("unit", "") }}
-      </div>
-    {% endif %}
-  </div>
+  {% if times|length == 0 %}
+    <div class="grid grid-cols-3 gap-2">
+      <input type="time" name="time" class="w-full border rounded px-2 py-1 time-input" required />
+      <input type="number" name="dose" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
+      {{ unit_select("unit", "") }}
+    </div>
+  {% endif %}
+</div>
 
-  <p id="duplicate-warning" class="text-red-600 text-sm hidden mt-1">Uhrzeiten dürfen nicht doppelt vergeben werden.</p>
-  <button type="button" onclick="addTimeOfDayField()" class="text-blue-600 hover:underline text-sm mt-2">
-    + Weitere Uhrzeit hinzufügen
-  </button>
-  <script>
-    let timeOfDayCount = {{ times|length if times|length > 0 else 1 }};
+<p id="duplicate-warning" class="text-red-600 text-sm hidden mt-1">Uhrzeiten dürfen nicht doppelt vergeben werden.</p>
+<button type="button" onclick="addTimeOfDayField()" class="text-blue-600 hover:underline text-sm mt-2">
+  + Weitere Uhrzeit hinzufügen
+</button>
 
-    function validateDuplicateTimes() {
-        const inputs = document.querySelectorAll('.time-input');
-        const seen = new Set();
-        let duplicate = false;
+<script>
+  let timeOfDayCount = {{ times|length if times|length > 0 else 1 }};
 
-        inputs.forEach(input => {
-          const val = input.value;
-          if (!val) {
-              input.classList.remove("border-red-500");
-              return;
-          }
+  function validateDuplicateTimes() {
+    const inputs = document.querySelectorAll('.time-input');
+    const seen = new Set();
+    let duplicate = false;
 
-          if (seen.has(val)) {
-              input.classList.add("border-red-500");
-              duplicate = true;
-          } else {
-              seen.add(val);
-              input.classList.remove("border-red-500");
-          }
-        });
+    inputs.forEach(input => {
+      const val = input.value;
+      if (!val) {
+        input.classList.remove("border-red-500");
+        return;
+      }
+      if (seen.has(val)) {
+        input.classList.add("border-red-500");
+        duplicate = true;
+      } else {
+        seen.add(val);
+        input.classList.remove("border-red-500");
+      }
+    });
 
-        document.getElementById("duplicate-warning").classList.toggle("hidden", !duplicate);
-    }
+    document.getElementById("duplicate-warning").classList.toggle("hidden", !duplicate);
+  }
 
-    function attachValidation(input) {
-        input.addEventListener("input", validateDuplicateTimes);
-    }
+  function attachValidation(input) {
+    input.addEventListener("input", validateDuplicateTimes);
+  }
 
-    function addTimeOfDayField() {
-        timeOfDayCount++;
-        const container = document.getElementById("timeofday-inputs");
-        const div = document.createElement("div");
-        div.className = "grid grid-cols-3 gap-2";
-        div.innerHTML = `
-        <input type="time" name="time" class="w-full border rounded px-2 py-1 time-input" required />
-        <input type="number" name="dose" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
-        {{ unit_select("unit", "") | replace('"', '&quot;') }}
-        `;
-        container.appendChild(div);
-        const newInput = div.querySelector('.time-input');
-        attachValidation(newInput);
-    }
+  function addTimeOfDayField() {
+    timeOfDayCount++;
+    const container = document.getElementById("timeofday-inputs");
+    const div = document.createElement("div");
+    div.className = "grid grid-cols-3 gap-2";
 
-    document.querySelectorAll('.time-input').forEach(attachValidation);
-  </script>
+    // Note: Das Dropdown wird über ein unsichtbares hidden-template in HTML erzeugt (besser als Jinja im JS)
+    div.innerHTML = `
+      <input type="time" name="time" class="w-full border rounded px-2 py-1 time-input" required />
+      <input type="number" name="dose" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
+      <select name="unit" class="border rounded px-2 py-1">
+        {{ units.dosage_units | map(attribute=1) | list | join('</option><option value="') | replace('>', '&gt;') | replace('<', '&lt;') }}
+      </select>
+    `;
+    container.appendChild(div);
+    const newInput = div.querySelector('.time-input');
+    attachValidation(newInput);
+  }
+  document.querySelectorAll('.time-input').forEach(attachValidation);
+</script>
 
   {% elif schema == "weekday" %}
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
