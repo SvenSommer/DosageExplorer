@@ -1,47 +1,71 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>DosageExplorer</title>
-    <script src="https://unpkg.com/htmx.org"></script>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <title>DosageExplorer</title>
+  <script src="https://unpkg.com/htmx.org"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="p-6 bg-gray-100">
-    <div class="max-w-xl mx-auto bg-white rounded-xl shadow-md p-6">
-        <h1 class="text-2xl font-bold mb-4">DosageExplorer</h1>
-
-        <label class="block mb-4">
-            <span class="text-gray-700">Dosierschema auswählen</span>
-            <select name="schema"
-                    hx-get="/form"
-                    hx-target="#form-area"
-                    hx-trigger="change"
-                    hx-swap="innerHTML"
-                    hx-on:change="document.getElementById('result').innerHTML = ''"
-                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                <option value="freetext" {% if schema == "freetext" %}selected{% endif %}>Freitext-Dosierung</option>
-                <option value="mman" {% if schema == "mman" %}selected{% endif %}>Tageszeiten-Schema (MMAN)</option>
-                <option value="timeofday" {% if schema == "timeofday" %}selected{% endif %}>Uhrzeit-Schema</option>
-                <option value="weekday" {% if schema == "weekday" %}selected{% endif %}>Wochentag-Schema</option>
-                <option value="interval" {% if schema == "interval" %}selected{% endif %}>wiederkehrende Intervalle</option>
-                <option value="combined_interval_time" {% if schema == "combined_interval_time" %}selected{% endif %}>
-                    Kombinationen von Zeitintervallen
-                </option>
-                <option value="weekday_combined" {% if schema == "weekday_combined" %}selected{% endif %}>
-                    Kombinationen des Wochentags
-                </option>
-            </select>
-        </label>
-
-        <div id="form-area">
-            {% include "form_fragment.html" %}
+  <div class="max-w-xl mx-auto bg-white rounded-xl shadow-md p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">DosageExplorer</h1>
+        <button type="button"
+                onclick="copyToClipboard()"
+                title="Link zu diesem Beispiel kopieren"
+                class="text-gray-400 hover:text-blue-600 transition-colors"
+                aria-label="Link zu diesem Beispiel kopieren">
+            <!-- Heroicon clipboard -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none"
+                viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M9 12h6m-6 4h6m2 6H7a2 2 0 01-2-2V6a2 2 0 012-2h4l1-1h2l1 1h4a2 2 0 012 2v14a2 2 0 01-2 2z"/>
+            </svg>
+        </button>
         </div>
 
-        <div id="result" class="mt-6">
-            {% if fhir %}
-                <h2 class="text-xl font-semibold mb-2">FHIR-Objekt</h2>
-                <pre class="bg-gray-200 p-4 rounded text-sm">{{ fhir | tojson(indent=2) }}</pre>
-            {% endif %}
-        </div>
-    </div>
+    <form method="get" action="/generate/{{ schema }}" class="space-y-4">
+      <label class="block mb-4">
+        <span class="text-gray-700">Dosierschema auswählen</span>
+        <select name="schema"
+                hx-get="/"
+                hx-target="body"
+                hx-include="[name=schema]"
+                hx-push-url="true"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+          <option value="freetext" {% if schema == "freetext" %}selected{% endif %}>Freitext-Dosierung</option>
+          <option value="mman" {% if schema == "mman" %}selected{% endif %}>Tageszeiten-Schema (MMAN)</option>
+          <option value="timeofday" {% if schema == "timeofday" %}selected{% endif %}>Uhrzeit-Schema</option>
+          <option value="weekday" {% if schema == "weekday" %}selected{% endif %}>Wochentag-Schema</option>
+          <option value="interval" {% if schema == "interval" %}selected{% endif %}>wiederkehrende Intervalle</option>
+        </select>
+      </label>
+
+      <div id="form-area">
+        {% include "form_fragment.html" %}
+      </div>
+    </form>
+
+
+
+    {% if text %}
+      <h3 class="text-lg font-semibold mt-6">📘 Generierter Dosierungstext</h3>
+      <p class="bg-green-100 p-4 rounded text-sm whitespace-pre-line">{{ text | safe }}</p>
+    {% endif %}
+
+    {% if fhir %}
+      <h3 class="text-lg font-semibold mt-4">📦 FHIR-Objekt</h3>
+      <pre class="bg-gray-200 p-4 rounded text-sm overflow-auto">{{ fhir | escape }}</pre>
+    {% endif %}
+  </div>
+  <script>
+  function copyToClipboard() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      const btn = event.currentTarget;
+      const originalColor = btn.className;
+      btn.classList.add("text-green-600");
+      setTimeout(() => btn.className = originalColor, 1500);
+    });
+  }
+</script>
 </body>
 </html>

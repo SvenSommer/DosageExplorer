@@ -1,44 +1,57 @@
-{% set show_duration_controls = true %}
-<form hx-post="/generate/{{ schema }}" hx-target="#result" class="space-y-4">
-  <input type="hidden" name="schema" value="{{ schema }}" />
-
+<form method="get" action="/generate/{{ schema }}" class="space-y-4">
   {% macro mman_fields(prefix="") %}
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     {% for label, name in [("Morgens", "morning"), ("Mittags", "noon"), ("Abends", "evening"), ("Nachts", "night")] %}
     <label class="block">
       {{ label }}:
-      <input type="number" name="{{ prefix }}{{ name }}" min="0" class="w-full border rounded px-2 py-1" />
+      <input type="number" name="{{ prefix }}{{ name }}"
+             value="{{ request.query_params.get(prefix ~ name, '') }}"
+             min="0" class="w-full border rounded px-2 py-1" />
     </label>
     {% endfor %}
   </div>
   {% endmacro %}
 
-  {% macro timeofday_fields(index="1") %}
-  <div class="grid grid-cols-2 gap-2">
-    <input type="time" name="time_{{ index }}" class="w-full border rounded px-2 py-1" required />
-    <input type="number" name="dose_{{ index }}" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
-  </div>
-  {% endmacro %}
+  {% if schema == "freetext" %}
+  <label class="block">Freitext-Dosierung:
+    <input type="text" name="freetext"
+           value="{{ request.query_params.get('freetext', '') }}"
+           class="w-full border rounded px-2 py-1" />
+  </label>
 
-  {% if schema == "mman" %}
+  {% elif schema == "mman" %}
     {{ mman_fields() }}
 
-    {% elif schema == "timeofday" %}
-    <div id="timeofday-inputs" class="space-y-2">
-    <div class="grid grid-cols-2 gap-2">
-        <input type="time" name="time_1" class="w-full border rounded px-2 py-1 time-input" required />
-        <input type="number" name="dose_1" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
-    </div>
-    </div>
+ {% elif schema == "timeofday" %}
+  {% set times = request.query_params.getlist('time') %}
+  {% set doses = request.query_params.getlist('dose') %}
 
-    <p id="duplicate-warning" class="text-red-600 text-sm hidden mt-1">Uhrzeiten dürfen nicht doppelt vergeben werden.</p>
+  <div id="timeofday-inputs" class="space-y-2">
+    {% for t in times %}
+      <div class="grid grid-cols-2 gap-2">
+        <input type="time" name="time" value="{{ t }}" class="w-full border rounded px-2 py-1 time-input" required />
+        <input type="number" name="dose"
+               value="{{ doses[loop.index0] if loop.index0 < doses|length else '' }}"
+               step="any" min="0"
+               class="w-full border rounded px-2 py-1"
+               required placeholder="Dosis" />
+      </div>
+    {% endfor %}
 
-    <button type="button" onclick="addTimeOfDayField()" class="text-blue-600 hover:underline text-sm mt-2">
+    {% if times|length == 0 %}
+      <div class="grid grid-cols-2 gap-2">
+        <input type="time" name="time" class="w-full border rounded px-2 py-1 time-input" required />
+        <input type="number" name="dose" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
+      </div>
+    {% endif %}
+  </div>
+
+  <p id="duplicate-warning" class="text-red-600 text-sm hidden mt-1">Uhrzeiten dürfen nicht doppelt vergeben werden.</p>
+  <button type="button" onclick="addTimeOfDayField()" class="text-blue-600 hover:underline text-sm mt-2">
     + Weitere Uhrzeit hinzufügen
-    </button>
-
-    <script>
-    let timeOfDayCount = 1;
+  </button>
+  <script>
+    let timeOfDayCount = {{ times|length if times|length > 0 else 1 }};
 
     function validateDuplicateTimes() {
         const inputs = document.querySelectorAll('.time-input');
@@ -74,174 +87,123 @@
         const div = document.createElement("div");
         div.className = "grid grid-cols-2 gap-2";
         div.innerHTML = `
-        <input type="time" name="time_${timeOfDayCount}" class="w-full border rounded px-2 py-1 time-input" required />
-        <input type="number" name="dose_${timeOfDayCount}" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
+        <input type="time" name="time" class="w-full border rounded px-2 py-1 time-input" required />
+        <input type="number" name="dose" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
         `;
         container.appendChild(div);
 
-        // neue Zeitinput-Felder validieren
         const newInput = div.querySelector('.time-input');
         attachValidation(newInput);
     }
 
-    // initiales Feld anhängen
     document.querySelectorAll('.time-input').forEach(attachValidation);
     </script>
 
-    {% elif schema == "weekday" %}
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-    {% set days = [
-        ("mon", "Mo"), ("tue", "Di"), ("wed", "Mi"),
-        ("thu", "Do"), ("fri", "Fr"), ("sat", "Sa"), ("sun", "So")
-    ] %}
-    {% for code, label in days %}
+  {% elif schema == "weekday" %}
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+    {% for code, label in [("mon", "Mo"), ("tue", "Di"), ("wed", "Mi"), ("thu", "Do"), ("fri", "Fr"), ("sat", "Sa"), ("sun", "So")] %}
     <label class="flex items-center gap-2">
-        {{ label }}:
-        <input type="number" name="dose_{{ code }}" min="0" step="any" class="w-20 border rounded px-2 py-1" placeholder="Dosis" />
+      {{ label }}:
+      <input type="number" name="dose_{{ code }}"
+             value="{{ request.query_params.get('dose_' ~ code, '') }}"
+             min="0" step="any" class="w-20 border rounded px-2 py-1" placeholder="Dosis" />
     </label>
     {% endfor %}
-    </div>
+  </div>
 
   {% elif schema == "interval" %}
-  <label class="block">
-    Häufigkeit (frequency):
-    <input type="number" name="frequency" min="1" class="w-full border rounded px-2 py-1" required />
+  <label class="block">Häufigkeit:
+    <input type="number" name="frequency"
+           value="{{ request.query_params.get('frequency', '') }}"
+           min="1" class="w-full border rounded px-2 py-1" required />
   </label>
-  <label class="block">
-    Intervall (period):
-    <input type="number" name="period" min="1" class="w-full border rounded px-2 py-1" required />
+  <label class="block">Intervall:
+    <input type="number" name="period"
+           value="{{ request.query_params.get('period', '') }}"
+           min="1" class="w-full border rounded px-2 py-1" required />
   </label>
-  <label class="block">
-    Zeiteinheit:
+  <label class="block">Zeiteinheit:
+    {% set selected = request.query_params.get('period_unit', '') %}
     <select name="period_unit" class="w-full border rounded px-2 py-1" required>
-        <option value="d">Tag(e)</option>
-        <option value="wk">Woche(n)</option>
-        <option value="mo">Monat(e)</option>
-        <option value="a">Jahr(e)</option>
+      <option value="d"  {% if selected == "d"  %}selected{% endif %}>Tag(e)</option>
+      <option value="wk" {% if selected == "wk" %}selected{% endif %}>Woche(n)</option>
+      <option value="mo" {% if selected == "mo" %}selected{% endif %}>Monat(e)</option>
+      <option value="a"  {% if selected == "a"  %}selected{% endif %}>Jahr(e)</option>
     </select>
   </label>
-  <label class="block">
-    Dosis:
-    <input type="number" name="dose" step="any" min="0.1" class="w-full border rounded px-2 py-1" />
-  </label>
-
-  {% elif schema in ["combined_interval_time", "weekday_combined"] %}
-  <div id="combo-fields">
-    <!-- Initial block -->
-  </div>
-  <button type="button" onclick="addComboField()" class="text-blue-600 hover:underline text-sm">+ Zeitpunkt hinzufügen</button>
-
-  {% if schema == "combined_interval_time" %}
-  <label class="block mt-4">
-    Häufigkeit (frequency):
-    <input type="number" name="frequency" min="1" class="w-full border rounded px-2 py-1" />
-  </label>
-  <label class="block">
-    Intervall (period):
-    <input type="number" name="period" min="1" class="w-full border rounded px-2 py-1" />
-  </label>
-    <label class="block">
-    Zeiteinheit:
-    <select name="period_unit" class="w-full border rounded px-2 py-1">
-        <option value="d">Tag(e)</option>
-        <option value="wk">Woche(n)</option>
-        <option value="mo">Monat(e)</option>
-        <option value="a">Jahr(e)</option>
-    </select>
-    </label>
-  {% endif %}
-
-  <script>
-    let comboIndex = 0;
-    function addComboField() {
-      comboIndex++;
-      const container = document.getElementById("combo-fields");
-      const wrapper = document.createElement("fieldset");
-      wrapper.className = "border p-3 rounded mb-4";
-      wrapper.innerHTML = `
-        <legend class="font-semibold text-sm mb-2">Zeitpunkt ${comboIndex}</legend>
-        {% if schema == "weekday_combined" %}
-        <label class="block mb-2">
-          Wochentage:
-          <select name="days_${comboIndex}" multiple class="w-full border rounded px-2 py-1">
-            {% for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] %}
-            <option value="{{ d }}">{{ d|title }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        {% endif %}
-        <label class="block mb-2">
-          Eingabemodus:
-          <select name="mode_${comboIndex}" class="w-full border rounded px-2 py-1" onchange="toggleTimeMode(this, ${comboIndex})">
-            <option value="mman">Tageszeit (MMAN)</option>
-            <option value="timeofday">Uhrzeit</option>
-          </select>
-        </label>
-        <div id="time-fields-${comboIndex}">
-          {{ mman_fields("${comboIndex}_") }}
-        </div>
-        <label class="block">
-          Dosis:
-          <input type="number" step="any" name="dose_${comboIndex}" class="w-full border rounded px-2 py-1" />
-        </label>
-      `;
-      container.appendChild(wrapper);
-    }
-    function toggleTimeMode(select, index) {
-      const target = document.getElementById(`time-fields-${index}`);
-      if (select.value === 'timeofday') {
-        target.innerHTML = `
-          <div class='grid grid-cols-2 gap-2'>
-            <input type='time' name='time_${index}' class='w-full border rounded px-2 py-1' required />
-            <input type='number' name='dose_${index}' step='any' min='0' class='w-full border rounded px-2 py-1' required placeholder='Dosis' />
-          </div>
-        `;
-      } else {
-        target.innerHTML = `
-          <div class='grid grid-cols-2 md:grid-cols-4 gap-4'>
-            <label class='block'>Morgens:<input type='number' name='${index}_morning' min='0' class='w-full border rounded px-2 py-1' /></label>
-            <label class='block'>Mittags:<input type='number' name='${index}_noon' min='0' class='w-full border rounded px-2 py-1' /></label>
-            <label class='block'>Abends:<input type='number' name='${index}_evening' min='0' class='w-full border rounded px-2 py-1' /></label>
-            <label class='block'>Nachts:<input type='number' name='${index}_night' min='0' class='w-full border rounded px-2 py-1' /></label>
-          </div>
-        `;
-      }
-    }
-  </script>
-
-  {% else %}
-  <label class="block">
-    Freitext-Dosierung:
-    <input type="text" name="freetext" class="w-full border rounded px-2 py-1" />
+  <label class="block">Dosis:
+    <input type="number" name="dose"
+           value="{{ request.query_params.get('dose', '') }}"
+           step="any" min="0.1" class="w-full border rounded px-2 py-1" />
   </label>
   {% endif %}
 
 {% if schema != "freetext" %}
+  {% set duration_value = request.query_params.get('duration_value') %}
   <label class="block">
-    <input type="checkbox" id="limit_duration" onclick="toggleDuration()" class="mr-2" />
-    Einnahmedauer zeitlich einschränken
+    <input type="checkbox" id="limit_duration" class="mr-2"
+           {% if duration_value %}checked{% endif %}
+           onchange="toggleDuration()" />
+    Einnahmedauer angeben
   </label>
-  <div id="duration_fields" class="hidden">
+
+  <div id="duration_fields" class="mt-2 {% if not duration_value %}hidden{% endif %}">
     <div class="flex gap-2">
-      <input type="number" name="duration_value" min="1" class="w-24 border rounded px-2 py-1" placeholder="z. B. 10" />
-      <select name="duration_unit" class="border rounded px-2 py-1">
-        <option value="d">Tag(e)</option>
-        <option value="wk">Woche(n)</option>
-        <option value="mo">Monat(e)</option>
-        <option value="a">Jahr(e)</option>
+      <input type="number" name="duration_value"
+             value="{{ duration_value or '' }}"
+             min="1" class="w-24 border rounded px-2 py-1" placeholder="z. B. 10" />
+      {% set selected = request.query_params.get('duration_unit', '') %}
+      <select {% if duration_value %}name="duration_unit"{% endif %} class="border rounded px-2 py-1">
+        <option value="d"  {% if selected == "d"  %}selected{% endif %}>Tag(e)</option>
+        <option value="wk" {% if selected == "wk" %}selected{% endif %}>Woche(n)</option>
+        <option value="mo" {% if selected == "mo" %}selected{% endif %}>Monat(e)</option>
+        <option value="a"  {% if selected == "a"  %}selected{% endif %}>Jahr(e)</option>
       </select>
     </div>
   </div>
+
   <script>
     function toggleDuration() {
-      const box = document.getElementById("limit_duration");
-      const fields = document.getElementById("duration_fields");
-      fields.classList.toggle("hidden", !box.checked);
+      const checkbox = document.getElementById("limit_duration");
+      const container = document.getElementById("duration_fields");
+      if (checkbox.checked) {
+        container.classList.remove("hidden");
+      } else {
+        container.classList.add("hidden");
+        // Optional: leere Felder, damit sie nicht in URL wandern
+        container.querySelectorAll("input, select").forEach(el => el.value = "");
+      }
     }
+
+    // Initialzustand synchronisieren (sicherstellen, dass JS korrekt angewendet wird)
+    document.addEventListener("DOMContentLoaded", toggleDuration);
   </script>
 {% endif %}
 
-  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-    Dosierung generieren
-  </button>
+<button type="submit" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+  Dosierung generieren
+</button>
 </form>
+  <script>
+    document.querySelectorAll("form[method=get]").forEach(form => {
+      form.addEventListener("submit", function (e) {
+        const inputs = form.querySelectorAll("input, select").forEach(input => {
+            if (!input.name) return;
+
+            const isEmpty = input.type !== "checkbox" && input.value.trim() === "";
+
+            if (
+                (input.type === "checkbox" && !input.checked) ||
+                isEmpty
+            ) {
+                input.removeAttribute("name");
+            }
+
+            // Spezialfall: leeres <select>
+            if (input.tagName === "SELECT" && !input.value) {
+                input.removeAttribute("name");
+            }
+            });
+      });
+    });
+  </script>
