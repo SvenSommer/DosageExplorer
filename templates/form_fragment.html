@@ -1,13 +1,26 @@
+{% import "_dosage_units.jinja" as units %}
+
+{% macro unit_select(name, selected) %}
+  <select name="{{ name }}" class="border rounded px-2 py-1">
+    {% for code, label in units.dosage_units %}
+      <option value="{{ code }}" {% if selected == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+{% endmacro %}
+
 <form method="get" action="/generate/{{ schema }}" class="space-y-4">
   {% macro mman_fields(prefix="") %}
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     {% for label, name in [("Morgens", "morning"), ("Mittags", "noon"), ("Abends", "evening"), ("Nachts", "night")] %}
-    <label class="block">
-      {{ label }}:
-      <input type="number" name="{{ prefix }}{{ name }}"
-             value="{{ request.query_params.get(prefix ~ name, '') }}"
-             min="0" class="w-full border rounded px-2 py-1" />
-    </label>
+    <div>
+      <label class="block">{{ label }}:</label>
+      <div class="flex gap-2">
+        <input type="number" name="{{ prefix }}{{ name }}"
+               value="{{ request.query_params.get(prefix ~ name, '') }}"
+               min="0" class="w-full border rounded px-2 py-1" />
+        {{ unit_select(prefix ~ "unit_" ~ name, request.query_params.get(prefix ~ "unit_" ~ name, '')) }}
+      </div>
+    </div>
     {% endfor %}
   </div>
   {% endmacro %}
@@ -22,26 +35,29 @@
   {% elif schema == "mman" %}
     {{ mman_fields() }}
 
- {% elif schema == "timeofday" %}
+  {% elif schema == "timeofday" %}
   {% set times = request.query_params.getlist('time') %}
   {% set doses = request.query_params.getlist('dose') %}
+  {% set units_ = request.query_params.getlist('unit') %}
 
   <div id="timeofday-inputs" class="space-y-2">
     {% for t in times %}
-      <div class="grid grid-cols-2 gap-2">
+      <div class="grid grid-cols-3 gap-2">
         <input type="time" name="time" value="{{ t }}" class="w-full border rounded px-2 py-1 time-input" required />
         <input type="number" name="dose"
                value="{{ doses[loop.index0] if loop.index0 < doses|length else '' }}"
                step="any" min="0"
                class="w-full border rounded px-2 py-1"
                required placeholder="Dosis" />
+        {{ unit_select("unit", units_[loop.index0] if loop.index0 < units_|length else '') }}
       </div>
     {% endfor %}
 
     {% if times|length == 0 %}
-      <div class="grid grid-cols-2 gap-2">
+      <div class="grid grid-cols-3 gap-2">
         <input type="time" name="time" class="w-full border rounded px-2 py-1 time-input" required />
         <input type="number" name="dose" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
+        {{ unit_select("unit", "") }}
       </div>
     {% endif %}
   </div>
@@ -59,19 +75,19 @@
         let duplicate = false;
 
         inputs.forEach(input => {
-        const val = input.value;
-        if (!val) {
-            input.classList.remove("border-red-500");
-            return;
-        }
+          const val = input.value;
+          if (!val) {
+              input.classList.remove("border-red-500");
+              return;
+          }
 
-        if (seen.has(val)) {
-            input.classList.add("border-red-500");
-            duplicate = true;
-        } else {
-            seen.add(val);
-            input.classList.remove("border-red-500");
-        }
+          if (seen.has(val)) {
+              input.classList.add("border-red-500");
+              duplicate = true;
+          } else {
+              seen.add(val);
+              input.classList.remove("border-red-500");
+          }
         });
 
         document.getElementById("duplicate-warning").classList.toggle("hidden", !duplicate);
@@ -85,29 +101,32 @@
         timeOfDayCount++;
         const container = document.getElementById("timeofday-inputs");
         const div = document.createElement("div");
-        div.className = "grid grid-cols-2 gap-2";
+        div.className = "grid grid-cols-3 gap-2";
         div.innerHTML = `
         <input type="time" name="time" class="w-full border rounded px-2 py-1 time-input" required />
         <input type="number" name="dose" step="any" min="0" class="w-full border rounded px-2 py-1" required placeholder="Dosis" />
+        {{ unit_select("unit", "") | replace('"', '&quot;') }}
         `;
         container.appendChild(div);
-
         const newInput = div.querySelector('.time-input');
         attachValidation(newInput);
     }
 
     document.querySelectorAll('.time-input').forEach(attachValidation);
-    </script>
+  </script>
 
   {% elif schema == "weekday" %}
-  <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     {% for code, label in [("mon", "Mo"), ("tue", "Di"), ("wed", "Mi"), ("thu", "Do"), ("fri", "Fr"), ("sat", "Sa"), ("sun", "So")] %}
-    <label class="flex items-center gap-2">
-      {{ label }}:
-      <input type="number" name="dose_{{ code }}"
-             value="{{ request.query_params.get('dose_' ~ code, '') }}"
-             min="0" step="any" class="w-20 border rounded px-2 py-1" placeholder="Dosis" />
-    </label>
+    <div>
+      <label class="block">{{ label }}:</label>
+      <div class="flex gap-2">
+        <input type="number" name="dose_{{ code }}"
+               value="{{ request.query_params.get('dose_' ~ code, '') }}"
+               min="0" step="any" class="w-full border rounded px-2 py-1" placeholder="Dosis" />
+        {{ unit_select("unit_" ~ code, request.query_params.get('unit_' ~ code, '')) }}
+      </div>
+    </div>
     {% endfor %}
   </div>
 
@@ -132,9 +151,12 @@
     </select>
   </label>
   <label class="block">Dosis:
-    <input type="number" name="dose"
-           value="{{ request.query_params.get('dose', '') }}"
-           step="any" min="0.1" class="w-full border rounded px-2 py-1" />
+    <div class="flex gap-2">
+      <input type="number" name="dose"
+             value="{{ request.query_params.get('dose', '') }}"
+             step="any" min="0.1" class="w-full border rounded px-2 py-1" />
+      {{ unit_select("unit", request.query_params.get("unit", "")) }}
+    </div>
   </label>
   {% endif %}
 
@@ -170,12 +192,10 @@
         container.classList.remove("hidden");
       } else {
         container.classList.add("hidden");
-        // Optional: leere Felder, damit sie nicht in URL wandern
         container.querySelectorAll("input, select").forEach(el => el.value = "");
       }
     }
 
-    // Initialzustand synchronisieren (sicherstellen, dass JS korrekt angewendet wird)
     document.addEventListener("DOMContentLoaded", toggleDuration);
   </script>
 {% endif %}
@@ -184,26 +204,20 @@
   Dosierung generieren
 </button>
 </form>
-  <script>
-    document.querySelectorAll("form[method=get]").forEach(form => {
-      form.addEventListener("submit", function (e) {
-        const inputs = form.querySelectorAll("input, select").forEach(input => {
-            if (!input.name) return;
 
-            const isEmpty = input.type !== "checkbox" && input.value.trim() === "";
-
-            if (
-                (input.type === "checkbox" && !input.checked) ||
-                isEmpty
-            ) {
-                input.removeAttribute("name");
-            }
-
-            // Spezialfall: leeres <select>
-            if (input.tagName === "SELECT" && !input.value) {
-                input.removeAttribute("name");
-            }
-            });
+<script>
+  document.querySelectorAll("form[method=get]").forEach(form => {
+    form.addEventListener("submit", function (e) {
+      form.querySelectorAll("input, select").forEach(input => {
+        if (!input.name) return;
+        const isEmpty = input.type !== "checkbox" && input.value.trim() === "";
+        if ((input.type === "checkbox" && !input.checked) || isEmpty) {
+          input.removeAttribute("name");
+        }
+        if (input.tagName === "SELECT" && !input.value) {
+          input.removeAttribute("name");
+        }
       });
     });
-  </script>
+  });
+</script>

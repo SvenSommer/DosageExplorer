@@ -22,7 +22,6 @@ templates = Jinja2Templates(directory="templates")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: StarletteRequest, exc: RequestValidationError):
-    # Gib die erste Fehlermeldung als Text aus
     first_error = exc.errors()[0]
     error_message = f"❌ {first_error.get('msg')}"
     schema = request.query_params.get("schema", "freetext")
@@ -46,11 +45,14 @@ async def generate_freetext(request: Request, freetext: str):
 async def generate_mman(
     request: Request,
     morning: Optional[str] = Query(default="0"),
+    unit_morning: Optional[str] = None,
     noon: Optional[str] = Query(default="0"),
+    unit_noon: Optional[str] = None,
     evening: Optional[str] = Query(default="0"),
+    unit_evening: Optional[str] = None,
     night: Optional[str] = Query(default="0"),
+    unit_night: Optional[str] = None,
     medication: str = "Arzneimittel",
-    unit: str = "Stück",
     duration_value: Optional[str] = Query(default=None),
     duration_unit: Optional[str] = None,
 ):
@@ -62,13 +64,12 @@ async def generate_mman(
 
     duration = int(duration_value) if duration_value and duration_value.isdigit() else None
     fhir_dict = build_mman(
-        safe_int(morning),
-        safe_int(noon),
-        safe_int(evening),
-        safe_int(night),
+        (safe_int(morning), unit_morning),
+        (safe_int(noon), unit_noon),
+        (safe_int(evening), unit_evening),
+        (safe_int(night), unit_night),
         duration,
         medication,
-        unit,
         duration_unit
     )
     return render_result(request, fhir_dict, schema="mman")
@@ -78,8 +79,8 @@ async def generate_timeofday(
     request: Request,
     time: List[str] = Query(default=[]),
     dose: List[float] = Query(default=[]),
+    unit: List[str] = Query(default=[]),
     medication: str = "Arzneimittel",
-    unit: str = "Stück",
     duration_value: Optional[str] = Query(default=None),
     duration_unit: Optional[str] = None,
 ):
@@ -87,33 +88,46 @@ async def generate_timeofday(
         return render_error(request, "❌ Doppelte Uhrzeiten sind nicht erlaubt.", schema="timeofday")
 
     duration = int(duration_value) if duration_value and duration_value.isdigit() else None
-    fhir_dict = build_timeofday(time, dose, duration, medication, unit, duration_unit)
+    fhir_dict = build_timeofday(time, dose, unit, duration, medication, duration_unit)
     return render_result(request, fhir_dict, schema="timeofday")
 
 @app.get("/generate/weekday", response_class=HTMLResponse)
 async def generate_weekday(
     request: Request,
     dose_mon: Optional[float] = None,
+    unit_mon: Optional[str] = None,
     dose_tue: Optional[float] = None,
+    unit_tue: Optional[str] = None,
     dose_wed: Optional[float] = None,
+    unit_wed: Optional[str] = None,
     dose_thu: Optional[float] = None,
+    unit_thu: Optional[str] = None,
     dose_fri: Optional[float] = None,
+    unit_fri: Optional[str] = None,
     dose_sat: Optional[float] = None,
+    unit_sat: Optional[str] = None,
     dose_sun: Optional[float] = None,
+    unit_sun: Optional[str] = None,
     medication: str = "Arzneimittel",
-    unit: str = "Stück",
     duration_value: Optional[str] = Query(default=None),
     duration_unit: Optional[str] = None,
 ):
-    days = [("mon", dose_mon), ("tue", dose_tue), ("wed", dose_wed), ("thu", dose_thu),
-            ("fri", dose_fri), ("sat", dose_sat), ("sun", dose_sun)]
-    days_and_doses = [(d, v) for d, v in days if v is not None]
+    days = [
+        ("mon", dose_mon, unit_mon),
+        ("tue", dose_tue, unit_tue),
+        ("wed", dose_wed, unit_wed),
+        ("thu", dose_thu, unit_thu),
+        ("fri", dose_fri, unit_fri),
+        ("sat", dose_sat, unit_sat),
+        ("sun", dose_sun, unit_sun)
+    ]
+    days_and_doses = [(d, v, u) for d, v, u in days if v is not None]
 
     if not days_and_doses:
         return render_error(request, "❌ Bitte geben Sie mindestens für einen Wochentag eine Dosis ein.", schema="weekday")
 
     duration = int(duration_value) if duration_value and duration_value.isdigit() else None
-    fhir_dict = build_weekday(days_and_doses, duration, duration_unit, medication, unit)
+    fhir_dict = build_weekday(days_and_doses, duration, duration_unit, medication)
     return render_result(request, fhir_dict, schema="weekday")
 
 @app.get("/generate/interval", response_class=HTMLResponse)
@@ -123,8 +137,8 @@ async def generate_interval(
     period: int,
     period_unit: str,
     dose: float = 1,
-    medication: str = "Arzneimittel",
     unit: str = "Stück",
+    medication: str = "Arzneimittel",
     duration_value: Optional[str] = Query(default=None),
     duration_unit: Optional[str] = None,
 ):
